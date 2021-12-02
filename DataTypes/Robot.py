@@ -3,10 +3,9 @@ from typing import List, Set
 
 
 class Robot:
-    def __init__(self, name: str):
-        self.real_goal = ""
-        self.actual_goal = ""
+    def __init__(self, name: str, position):
         self.name = name
+        self.position = position
 
 
 class RobotPath:
@@ -25,3 +24,4 @@ class RobotAction:
         self.collide_flag = False
         self.path = path
         self.current_location = path[0]
+

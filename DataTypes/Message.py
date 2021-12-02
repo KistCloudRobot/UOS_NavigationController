@@ -13,3 +13,10 @@ class Message:
     def __init__(self, job_type: MessageType, gl):
         self.type = job_type
         self.gl = gl
+
+
+class MoveRequestMessage(Message):
+    def __init__(self, job_type: MessageType, gl, robot_id):
+        self.type = job_type
+        self.gl = gl
+        self.robot_id = robot_id
