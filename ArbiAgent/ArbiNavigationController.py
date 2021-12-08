@@ -10,17 +10,13 @@ from typing import List
 from UOS_NavigationController.DataTypes.Message import Message
 from arbi_agent.model.generalized_list import GeneralizedList
 
-sys.path.append("/home/kist/demo/src/Python_mcArbiFramework/")
+from Python_mcArbiFramework.arbi_agent.agent.arbi_agent import ArbiAgent
+from Python_mcArbiFramework.arbi_agent.ltm.data_source import DataSource
+from Python_mcArbiFramework.arbi_agent.agent import arbi_agent_executor
+from Python_mcArbiFramework.arbi_agent.model import generalized_list_factory as GLFactory
 
-sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
-
-from arbi_agent.agent.arbi_agent import ArbiAgent
-from arbi_agent.ltm.data_source import DataSource
-from arbi_agent.agent import arbi_agent_executor
-from arbi_agent.model import generalized_list_factory as GLFactory
-
-from MapManagement.MapMOS import MapMOS
-from NavigationControl.NavigationControl import NavigationControl
+from UOS_NavigationController.MapManagement.MapMOS import MapMOS
+from UOS_NavigationController.NavigationControl.NavigationControl import NavigationControl
 
 agent_MAPF = "agent://www.arbi.com/Local/MultiAgentPathFinder"
 broker_url = "tcp://172.16.165.171:61313"
