@@ -16,17 +16,17 @@ class NavigationControl:
         #    self.timing[id] = [] # if NavPath[rid1][idx1] == NavPath[rid2][idx2] and idx2<idx1 : timing[id]=[[rid2, time_idx2, NavPath[rid1][idx1]], ...]
 
         # command for RobotTM
-        self.robotTM = {}  # the current command for RobotTM
-        self.robotTM_set = {}  # full sequence of commands for RobotTM
-        self.robotTM_scond = {}  # start condition of robotTM
+        self.current_command = {}  # the current command for RobotTM
+        self.command_set = {}  # full sequence of commands for RobotTM
+        self.command_start_condition = {}  # start condition of robotTM
         self.robotGoal = {}  # New: The goal of each robot
         self.robotStart = {}  # New: The goal of each robot
         self.robotPose = {}  # current pose of robot
 
         for id in self.AMR_IDs:
-            self.robotTM[id] = []  # a sequence of vertices
-            self.robotTM_set[id] = []  # [robotTM, robotTM, robotTM, ...]
-            self.robotTM_scond[id] = []  # start condition of robotTM
+            self.current_command[id] = []  # a sequence of vertices
+            self.command_set[id] = []  # [robotTM, robotTM, robotTM, ...]
+            self.command_start_condition[id] = []  # start condition of robotTM
             self.robotGoal[id] = -1
 
         self.PlanExecutedIdx = {}
@@ -58,20 +58,20 @@ class NavigationControl:
                 if rid in goals.keys():  # got new job
                     self.robotGoal[rid] = goals[rid]
 
-                if self.robotTM[rid] != []:  # the robot is executing the plan # TODO: test
-                    self.robotTM[rid] = [self.robotTM[rid][0]]
+                if self.current_command[rid] != []:  # the robot is executing the plan # TODO: test
+                    self.current_command[rid] = [self.current_command[rid][0]]
                     Rid_robotTM.append(rid)
-                    self.robotStart[rid] = self.robotTM[rid][0]
-                    self.robotTM_set[rid] = [self.robotTM[rid]]  # [robotTM, robotTM, robotTM, ...]
+                    self.robotStart[rid] = self.current_command[rid][0]
+                    self.command_set[rid] = [self.current_command[rid]]  # [robotTM, robotTM, robotTM, ...]
                     self.PlanExecutedIdx[rid] = [0, -1]
-                    self.robotTM_scond[rid] = []  # start condition of robotTM
+                    self.command_start_condition[rid] = []  # start condition of robotTM
 
                 else:
                     self.robotStart[rid] = robot_pose[rid][0]  # start point: the current vertex
-                    self.robotTM[rid] = []
-                    self.robotTM_set[rid] = []
+                    self.current_command[rid] = []
+                    self.command_set[rid] = []
                     self.PlanExecutedIdx[rid] = [-1, -1]
-                    self.robotTM_scond[rid] = []
+                    self.command_start_condition[rid] = []
             else:  # the robot does not have any job
                 if rid in goals.keys():  # get a new job
                     Rid_replan.append(rid)
@@ -141,9 +141,9 @@ class NavigationControl:
                 stationary_check = False
 
             if not stationary_check:
-                self.robotTM[id] = []  # a sequence of vertices
-                self.robotTM_set[id] = []  # [robotTM, robotTM, robotTM, ...]
-                self.robotTM_scond[id] = []  # start condition of robotTM
+                self.current_command[id] = []  # a sequence of vertices
+                self.command_set[id] = []  # [robotTM, robotTM, robotTM, ...]
+                self.command_start_condition[id] = []  # start condition of robotTM
                 self.PlanExecutedIdx[id] = [-1,
                                             -1]  # [i,j] Save the last index of NavPath[i][j] which the robot follows
                 self.Flag_terminate[id] = -1
@@ -223,7 +223,7 @@ class NavigationControl:
 
                 robotTM_seq.append(robotTM)
 
-            self.robotTM_set[rid] = copy.copy(robotTM_seq)
+            self.command_set[rid] = copy.copy(robotTM_seq)
             robotTM_mapping_set[rid] = robotTM_mapping
             scondTM_set[rid] = scond
 
@@ -243,7 +243,7 @@ class NavigationControl:
                     scond.append([])
 
             #            scond_TM_translated[rid] = scond
-            self.robotTM_scond[rid] = scond
+            self.command_start_condition[rid] = scond
 
     #        self.robotTM_scond = scond_TM_translated
 
@@ -253,9 +253,9 @@ class NavigationControl:
         # robotTM = copy.deepcopy(self.robotTM)
         # robotTM_set = copy.deepcopy(self.robotTM_set)
         # robotTM_scond = copy.deepcopy(self.robotTM_scond)
-        robotTM = copy.copy(self.robotTM)
-        robotTM_set = copy.copy(self.robotTM_set)
-        robotTM_scond = copy.copy(self.robotTM_scond)
+        robotTM = copy.copy(self.current_command)
+        robotTM_set = copy.copy(self.command_set)
+        robotTM_scond = copy.copy(self.command_start_condition)
         test = 0
         for rid, vid in robot_pose.items():
 
@@ -309,7 +309,7 @@ class NavigationControl:
                             del temp_path[0]
                             # self.robotTM[rid] = copy.deepcopy(temp_path)
                             print("Current", rid, temp_path)
-                            self.robotTM[rid] = copy.copy(temp_path)
+                            self.current_command[rid] = copy.copy(temp_path)
                             # print("after delete", rid, self.robotTM[rid])
                             # print(rid, self.PlanExecutedIdx)
                         # elif (vid[0]==vid[1]):
@@ -319,14 +319,14 @@ class NavigationControl:
                             del temp_path[:vidx + 1]
                             print("skip", rid, temp_path)
                             # self.robotTM[rid] = copy.deepcopy(robotTM[rid])
-                            self.robotTM[rid] = copy.copy(temp_path)
+                            self.current_command[rid] = copy.copy(temp_path)
                     else:
                         start_idx = self.PlanExecutedIdx[rid][0] + 1
                         if robotTM_scond[rid][start_idx] == []:
                             # robotTM[rid] = copy.deepcopy(robotTM_set[rid][start_idx])
                             # self.robotTM[rid] = copy.deepcopy(robotTM[rid])
                             robotTM[rid] = copy.copy(robotTM_set[rid][start_idx])
-                            self.robotTM[rid] = copy.copy(robotTM[rid])
+                            self.current_command[rid] = copy.copy(robotTM[rid])
                             self.PlanExecutedIdx[rid] = [start_idx, -1]
                             Rid_sendRobotTM.append(rid)
                         else:
@@ -339,16 +339,16 @@ class NavigationControl:
                                 # robotTM[rid] = copy.deepcopy(robotTM_set[rid][start_idx])
                                 # self.robotTM[rid] = copy.deepcopy(robotTM[rid])
                                 robotTM[rid] = copy.copy(robotTM_set[rid][start_idx])
-                                self.robotTM[rid] = copy.copy(robotTM[rid])
+                                self.current_command[rid] = copy.copy(robotTM[rid])
                                 self.PlanExecutedIdx[rid] = [start_idx, -1]
                                 Rid_sendRobotTM.append(rid)
             elif self.Flag_terminate[rid] == 0:
-                if self.robotTM[rid] != []:
+                if self.current_command[rid] != []:
                 # if len(self.robotTM[rid]) > 0:
-                    if (vid[0] == self.robotTM[rid][0]) and (vid[1] == self.robotTM[rid][0]):
-                        temp_path = self.robotTM[rid]
+                    if (vid[0] == self.current_command[rid][0]) and (vid[1] == self.current_command[rid][0]):
+                        temp_path = self.current_command[rid]
                         del temp_path[0]
-                        self.robotTM[rid] = temp_path
+                        self.current_command[rid] = temp_path
             # print(rid, robotTM[rid], robotTM_set[rid], self.PlanExecutedIdx[rid])
             # print(self.robotGoal)
         return Rid_sendRobotTM
@@ -362,26 +362,26 @@ class NavigationControl:
         for rid, vid in robot_pose.items():
             self.robotPose[rid] = vid
             if self.robotGoal[rid] != -1:
-                if self.robotTM[rid] != []:  # check plan execution
-                    compare_nodes = [[self.robotTM[rid][0]] * 2]
-                    if len(self.robotTM[rid]) > 1:
-                        compare_nodes.append(self.robotTM[rid][0:2])
-                        compare_nodes.append([self.robotTM[rid][1], self.robotTM[rid][0]])
+                if self.current_command[rid] != []:  # check plan execution
+                    compare_nodes = [[self.current_command[rid][0]] * 2]
+                    if len(self.current_command[rid]) > 1:
+                        compare_nodes.append(self.current_command[rid][0:2])
+                        compare_nodes.append([self.current_command[rid][1], self.current_command[rid][0]])
                     # if vid in [[self.robotTM[rid][0]]*2]:
-                    if (vid[0] == self.robotTM[rid][0]) and (vid[1] == self.robotTM[rid][0]):
+                    if (vid[0] == self.current_command[rid][0]) and (vid[1] == self.current_command[rid][0]):
                         self.PlanExecutedIdx[rid][1] = self.PlanExecutedIdx[rid][1] + 1
 
-                    if (vid[0] != self.robotTM[rid][0]) and (vid[0] == vid[1]):
-                        vidx = self.robotTM[rid].index(vid[0])
+                    if (vid[0] != self.current_command[rid][0]) and (vid[0] == vid[1]):
+                        vidx = self.current_command[rid].index(vid[0])
                         self.PlanExecutedIdx[rid][1] = self.PlanExecutedIdx[rid][1] + vidx + 1
                 else:
                     if (vid[0] == self.robotGoal[rid]) and (vid[1] == self.robotGoal[rid]):
                         self.Flag_terminate[rid] = 0
                         self.robotGoal[rid] = -1
 
-                if self.robotTM_set[rid] != []:  # check flag_terminate
-                    if self.PlanExecutedIdx[rid] == [len(self.robotTM_set[rid]) - 1,
-                                                     len(self.robotTM_set[rid][-1]) - 1]:
+                if self.command_set[rid] != []:  # check flag_terminate
+                    if self.PlanExecutedIdx[rid] == [len(self.command_set[rid]) - 1,
+                                                     len(self.command_set[rid][-1]) - 1]:
                         if vid == [self.robotGoal[rid]] * 2:
                             self.Flag_terminate[rid] = 0
                             self.robotGoal[rid] = -1
@@ -407,27 +407,27 @@ class NavigationControl:
         # print("AMR_TOW2 ", "scond ", self.robotTM_scond["AMR_TOW2"])
         for rid, vid in robot_pose.items():
             if self.Flag_terminate[rid] == -1:
-                if self.robotTM_set[rid] != []:
-                    if (self.robotTM[rid] != []) and (self.PlanExecutedIdx[rid][1] != -1):  # update robotTM
+                if self.command_set[rid] != []:
+                    if (self.current_command[rid] != []) and (self.PlanExecutedIdx[rid][1] != -1):  # update robotTM
                         # if vid in [[self.robotTM[rid][0]]*2]: # if a robot arrives at self.robotTM[rid][0]
-                        if (vid[0] == self.robotTM[rid][0]) and (vid[1] == self.robotTM[rid][0]):
-                            temp_path = self.robotTM[rid]
+                        if (vid[0] == self.current_command[rid][0]) and (vid[1] == self.current_command[rid][0]):
+                            temp_path = self.current_command[rid]
                             del temp_path[0]
-                            self.robotTM[rid] = temp_path
+                            self.current_command[rid] = temp_path
                             # self.robotTM[rid].pop(0)
-                        if (vid[0] != self.robotTM[rid][0]) and (vid[0] == vid[1]):
-                            vidx = self.robotTM[rid].index(vid[0])
-                            del self.robotTM[rid][:vidx + 1]
+                        if (vid[0] != self.current_command[rid][0]) and (vid[0] == vid[1]):
+                            vidx = self.current_command[rid].index(vid[0])
+                            del self.current_command[rid][:vidx + 1]
                     else:  # allocate a new robotTM
                         start_idx = self.PlanExecutedIdx[rid][0] + 1
-                        if self.robotTM_scond[rid][start_idx] == []:  # no condition
-                            self.robotTM[rid] = copy.copy(self.robotTM_set[rid][start_idx])
+                        if self.command_start_condition[rid][start_idx] == []:  # no condition
+                            self.current_command[rid] = copy.copy(self.command_set[rid][start_idx])
                             self.PlanExecutedIdx[rid] = [start_idx, -1]
                             # send the command
                             Rid_sendRobotTM.append(rid)
                         else:  # check condition
                             flag_start = True
-                            for cond in self.robotTM_scond[rid][start_idx]:
+                            for cond in self.command_start_condition[rid][start_idx]:
                                 if self.PlanExecutedIdx[cond[0]][0] < cond[1][0] or self.PlanExecutedIdx[cond[0]][1] < \
                                         cond[1][1]:
                                     flag_start = False
@@ -435,18 +435,18 @@ class NavigationControl:
                             #     if self.PlanExecutedIdx[cond[0]][0] < cond[1][0] or self.PlanExecutedIdx[cond[0]][1] < cond[1][1]:
                             #         flag_start = False
                             if flag_start:
-                                self.robotTM[rid] = copy.copy(self.robotTM_set[rid][start_idx])
+                                self.current_command[rid] = copy.copy(self.command_set[rid][start_idx])
                                 self.PlanExecutedIdx[rid] = [start_idx, -1]
                                 # send the command
                                 Rid_sendRobotTM.append(rid)
                         # if rid=="AMR_TOW1" or rid=="AMR_TOW2":
                         #     print(rid, "start_idx: ", start_idx, "executedidx: ", self.PlanExecutedIdx[rid])
             elif self.Flag_terminate[rid] == 0:
-                if self.robotTM[rid] != []:
-                    if (vid[0] == self.robotTM[rid][0]) and (vid[1] == self.robotTM[rid][0]):
-                        temp_path = self.robotTM[rid]
+                if self.current_command[rid] != []:
+                    if (vid[0] == self.current_command[rid][0]) and (vid[1] == self.current_command[rid][0]):
+                        temp_path = self.current_command[rid]
                         del temp_path[0]
-                        self.robotTM[rid] = temp_path
+                        self.current_command[rid] = temp_path
                         # self.robotTM[rid].pop(0)
 
         return Rid_sendRobotTM
@@ -458,12 +458,12 @@ class NavigationControl:
         # goals: {robot_id: goal vertex, ....}, robot_pose = {id, [vertex, vertex]}
 
         for rid in robot_ids:
-            if self.robotTM[rid] != []:  # the robot is executing the plan
-                self.robotTM[rid] = [self.robotTM[rid][0]]
-                self.robotStart[rid] = self.robotTM[rid][0]
-                self.robotTM_set[rid] = [self.robotTM[rid]]  # [robotTM, robotTM, robotTM, ...]
+            if self.current_command[rid] != []:  # the robot is executing the plan
+                self.current_command[rid] = [self.current_command[rid][0]]
+                self.robotStart[rid] = self.current_command[rid][0]
+                self.command_set[rid] = [self.current_command[rid]]  # [robotTM, robotTM, robotTM, ...]
                 self.PlanExecutedIdx[rid] = [0, -1]
-                self.robotTM_scond[rid] = [[]]  # start condition of robotTM
+                self.command_start_condition[rid] = [[]]  # start condition of robotTM
 
 
 if __name__ == "__main__":
