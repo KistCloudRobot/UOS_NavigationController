@@ -52,9 +52,9 @@ class NavigationControllerAgent(ArbiAgent):
         self.context_manager_uri = "agent://www.arbi.com/Local/ContextManager"
 
         self.task_manager_uri = {"AMR_LIFT1": "agent://www.arbi.com/Lift1/TaskManager",
-                        "AMR_LIFT2": "agent://www.arbi.com/Lift2/TaskManager",
-                        "AMR_TOW1": "agent://www.arbi.com/Tow1/TaskManager",
-                        "AMR_TOW2": "agent://www.arbi.com/Tow2/TaskManager"}  # agent address of robotTaskManager(robotTM)
+                                 "AMR_LIFT2": "agent://www.arbi.com/Lift2/TaskManager",
+                                 "AMR_TOW1": "agent://www.arbi.com/Tow1/TaskManager",
+                                 "AMR_TOW2": "agent://www.arbi.com/Tow2/TaskManager"}  # agent address of robotTaskManager(robotTM)
 
         self.behavior_interface_uri = {
             "AMR_LIFT1": "agent://www.arbi.com/Lift1/BehaviorInterface",
@@ -293,8 +293,9 @@ class NavigationControllerAgent(ArbiAgent):
                         print("[{action_id}][INFO2] {RobotID} cancel move finish".format(action_id=action_id,
                                                                                          RobotID=robot_id))
                         print("[{action_id}][INFO2] {RobotID}".format(action_id=action_id, RobotID=robot_id))
-                        print("[{action_id}][INFO2] {RobotID} Control request by <Move> Request [{num}], to {goal}".format(
-                            action_id=action_id, RobotID=robot_id, num=self.count, goal=actual_goal))
+                        print(
+                            "[{action_id}][INFO2] {RobotID} Control request by <Move> Request [{num}], to {goal}".format(
+                                action_id=action_id, RobotID=robot_id, num=self.count, goal=actual_goal))
                         # Thread(target=self.Control_request, args=(robot_id, False, True, self.count,),daemon=True).start()  # control request of robotID
                         self.generator_queue.append(self.control_request(robot_id, False, True, self.count))
                         self.count = self.count + 1
@@ -347,7 +348,8 @@ class NavigationControllerAgent(ArbiAgent):
         else:
             stationary_check = False
 
-        if self.navigation_controller.current_command[robot_id] and not stationary_check:  # check whether robot has path and not stationary
+        if self.navigation_controller.current_command[
+            robot_id] and not stationary_check:  # check whether robot has path and not stationary
             ''' if robot is avoiding against counterpart robot, path of the robot is split
                 e.g. self.NC.robotTM_set[avoidingRobotID] == [[path], [path]]
                      self.NC.robotTM_set[counterpartRobotID] == [[path]] '''
@@ -470,12 +472,12 @@ class NavigationControllerAgent(ArbiAgent):
 
         if len(self.navigation_controller.current_command[robot_id]) == 1:  # check whether robot is stationary
             stationary_check = (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1]) and (
-                        self.actual_goal[robot_id] == -1)  # True if robot is stationary and will be stationary
+                    self.actual_goal[robot_id] == -1)  # True if robot is stationary and will be stationary
         else:
             stationary_check = False
 
         if self.navigation_controller.current_command[robot_id] and (
-        not stationary_check):  # check whether robot has path and not stationary
+                not stationary_check):  # check whether robot has path and not stationary
             ''' if robot is avoiding against counterpart robot, path of the robot is split
                 e.g. self.NC.robotTM_set[avoidingRobotID] == [[path], [path]]
                      self.NC.robotTM_set[counterpartRobotID] == [[path]] '''
@@ -519,7 +521,7 @@ class NavigationControllerAgent(ArbiAgent):
                                  self.NC.robotTM_set["AMR_LIFT1"] == [[1, 2, 3], [4, 5, 6, 7]]
                                  self.NC.robotTM_set["AMR_LIFT2"] == [4, 5, 6, 7, 8, 9]
                                  self.NC.robotTM_scond["AMR_LIFT1"] == [[], [["AMR_LIFT2", [0, 1]]]]
-        
+
                             self.NC.robotTM_scond["AMR_LIFT1"]: start condition of "AMR_LIFT1"(avoidingRobot)
                             -> no condition of 0th path
                             -> [["AMR_LIFT2", [0, 1]]] condition of 1th path which means start after "AMR_LIFT2" passes 1th element(5) in 0th path([4, 5, 6, 7, 8, 9]) '''
@@ -530,7 +532,8 @@ class NavigationControllerAgent(ArbiAgent):
             print(robot_id, currnet_command_set)
             print(robot_id, path_idx)
             print(robot_id, current_command_set_start_condition[robot_id][path_idx])
-            if current_command_set_start_condition[robot_id][path_idx]:  # check whether current path has any start condition
+            if current_command_set_start_condition[robot_id][
+                path_idx]:  # check whether current path has any start condition
                 wait_flag = True
                 while wait_flag:
                     print(c + "wait flag")
@@ -588,13 +591,6 @@ class NavigationControllerAgent(ArbiAgent):
                                                                                    Result=str(result)))
             print(currnet_command_set[robot_id])
             print("robottm_set_robotid end of for statement")
-
-        goal_result_gl = "(MoveResult (actionID \"{ActionID}\") \"{Result}\")".format(
-            ActionID=self.goal_actionID[robot_id],
-            Result="success")
-        print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
-                                                                     GoalID=self.actual_goal[robot_id]))
-        self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
         self.avoid_flag[robot_id] = False  # update avoiding state of robot
         self.avoid_flag[c_robot_id] = False  # update avoiding state of robot
 
@@ -622,12 +618,6 @@ class NavigationControllerAgent(ArbiAgent):
                 yield
         except StopIteration:
             pass
-        goal_result_gl = "(MoveResult (actionID \"{ActionID}\") \"{Result}\")".format(
-            ActionID=self.goal_actionID[robot_id],
-            Result="success")
-        print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
-                                                                     GoalID=self.actual_goal[robot_id]))
-        self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
         print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response_gl)))
         if move_response_gl.get_name() != "fail":
             result = move_response_gl.get_expression(
@@ -678,6 +668,12 @@ class NavigationControllerAgent(ArbiAgent):
                     self.move_flag[robot_id] = False  # update state of robot to not moving
                     ''' MoveResult gl format: (MoveResult (actionID $actionID) $robotID $result) '''
 
+                    goal_result_gl = "(MoveResult (actionID \"{ActionID}\") \"{Result}\")".format(
+                        ActionID=self.goal_actionID[robot_id],
+                        Result="success")
+                    print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
+                                                                                 GoalID=self.actual_goal[robot_id]))
+                    self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
                     self.actual_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                     self.real_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                 else:
@@ -769,7 +765,8 @@ class NavigationControllerAgent(ArbiAgent):
             for msg in self.data_received:
                 gl = msg.gl
                 _action_id = gl.get_expression(0).as_generalized_list().get_expression(0).as_value().string_value()
-                print("_action_id is " + str(_action_id) + "and action_id is " + str(action_id) + "so result is " + str(str(action_id).replace("\"", "") == str(_action_id)))
+                print("_action_id is " + str(_action_id) + "and action_id is " + str(action_id) + "so result is " + str(
+                    str(action_id).replace("\"", "") == str(_action_id)))
                 if str(action_id).replace("\"", "") == str(_action_id):
                     result_gl = gl
                     msg.survive_flag = False
