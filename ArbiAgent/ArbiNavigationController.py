@@ -588,6 +588,13 @@ class NavigationControllerAgent(ArbiAgent):
                                                                                    Result=str(result)))
             print(currnet_command_set[robot_id])
             print("robottm_set_robotid end of for statement")
+
+        goal_result_gl = "(MoveResult (actionID \"{ActionID}\") \"{Result}\")".format(
+            ActionID=self.goal_actionID[robot_id],
+            Result="success")
+        print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
+                                                                     GoalID=self.actual_goal[robot_id]))
+        self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
         self.avoid_flag[robot_id] = False  # update avoiding state of robot
         self.avoid_flag[c_robot_id] = False  # update avoiding state of robot
 
@@ -615,6 +622,12 @@ class NavigationControllerAgent(ArbiAgent):
                 yield
         except StopIteration:
             pass
+        goal_result_gl = "(MoveResult (actionID \"{ActionID}\") \"{Result}\")".format(
+            ActionID=self.goal_actionID[robot_id],
+            Result="success")
+        print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
+                                                                     GoalID=self.actual_goal[robot_id]))
+        self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
         print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response_gl)))
         if move_response_gl.get_name() != "fail":
             result = move_response_gl.get_expression(
@@ -665,12 +678,6 @@ class NavigationControllerAgent(ArbiAgent):
                     self.move_flag[robot_id] = False  # update state of robot to not moving
                     ''' MoveResult gl format: (MoveResult (actionID $actionID) $robotID $result) '''
 
-                    goal_result_gl = "(MoveResult (actionID \"{ActionID}\") \"{Result}\")".format(
-                        ActionID=self.goal_actionID[robot_id],
-                        Result="success")
-                    print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
-                                                                                 GoalID=self.actual_goal[robot_id]))
-                    self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
                     self.actual_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                     self.real_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                 else:
