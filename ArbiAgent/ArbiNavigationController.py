@@ -14,7 +14,7 @@ from UOS_NavigationController.MapManagement.MapMOS import MapMOS
 from UOS_NavigationController.NavigationControl.NavigationControl import NavigationControl
 
 agent_mapf_uri = "agent://www.arbi.com/Local/MultiAgentPathFinder"
-broker_url = "tcp://172.16.165.171:61313"
+broker_url = "tcp://172.16.165.222:61313"
 
 
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
@@ -132,7 +132,7 @@ class NavigationControllerAgent(ArbiAgent):
             clean_generator_queue = []
             for generator in self.generator_queue:
                 try:
-                    print(generator)
+                    # print(generator)
                     next(generator)
                     clean_generator_queue.append(generator)
                 except StopIteration:
@@ -328,28 +328,45 @@ class NavigationControllerAgent(ArbiAgent):
         
         elif temp_gl.get_name() == "GuideMove":
             ''' (GuideMove (actionID $actionID) $robotID $vertex $direction) '''
+            print("[GuideMove] start GuideMove")
             action_id_gl = temp_gl.get_expression(0).as_generalized_list()
+            print("[GuideMove] action ID GL" + str(action_id_gl))
             action_id = action_id_gl.get_expression(0).as_value().string_value()
+            print("[GuideMove] action ID " + str(action_id))
             robot_id = temp_gl.get_expression(1).as_value().string_value()
-            vertex = temp_gl.get_expression(2).as_vlaue().int_vlaue()
+            print("[GuideMove] robot ID " + str(robot_id))
+            vertex = temp_gl.get_expression(2).as_value().int_value()
+            print("[GuideMove] vertex " + str(vertex))
             direction = temp_gl.get_expression(3).as_value().string_value()
+            print("[GuideMove] direction " + str(direction))
+            print("GGGG")
             self.generator_queue.append(self.guide_move(robot_id, action_id, vertex, direction))
+            print("GGGG")
+            return "(ok)"
             
         elif temp_gl.get_name() == "PreciseMove":
             ''' (PreciseMove (actionID $actionID) $robotID $vertex) '''
+            print("[PreciseMove] start PreciseMove")
             action_id_gl = temp_gl.get_expression(0).as_generalized_list()
             action_id = action_id_gl.get_expression(0).as_value().string_value()
             robot_id = temp_gl.get_expression(1).as_value().string_value()
-            vertex = temp_gl.get_expression(2).as_vlaue().int_vlaue()
+            vertex = temp_gl.get_expression(2).as_value().int_value()
+            print("PPPP")
             self.generator_queue.append(self.precise_move(robot_id, action_id, vertex))
+            print("PPPP")
+            return "(ok)"
             
         elif temp_gl.get_name() == "StraightBackMove":
             ''' (StraightBackMove (actionID $actionID) $robotID $vertex) '''
+            print("[StraightBackMove] start StraightBackMove")
             action_id_gl = temp_gl.get_expression(0).as_generalized_list()
             action_id = action_id_gl.get_expression(0).as_value().string_value()
             robot_id = temp_gl.get_expression(1).as_value().string_value()
-            vertex = temp_gl.get_expression(2).as_vlaue().int_vlaue()
+            vertex = temp_gl.get_expression(2).as_value().int_value()
+            print("SSSS")
             self.generator_queue.append(self.straight_back_move(robot_id, action_id, vertex))
+            print("SSSS")
+            return "(ok)"
             
         else:
             print("what?", str(temp_gl))
@@ -375,10 +392,13 @@ class NavigationControllerAgent(ArbiAgent):
             gen = self.wait_for_data(action_id)
             while True:
                 guide_move_gl = next(gen)
+                if guide_move_gl is not None:
+                    break
                 yield
         except StopIteration:
             pass
         guide_move_result_gl = "(MoveResult (actionID \"{actionID}\") \"{result}\")".format(actionID=action_id, result="success")
+        print(guide_move_result_gl)
         self.send(self.task_manager_uri[robot_id], guide_move_result_gl)    
         
     def precise_move(self, robot_id, action_id, vertex):
@@ -401,10 +421,13 @@ class NavigationControllerAgent(ArbiAgent):
             gen = self.wait_for_data(action_id)
             while True:
                 precise_move_gl = next(gen)
+                if precise_move_gl is not None:
+                    break
                 yield
         except StopIteration:
             pass
         precise_move_result_gl = "(MoveResult (actionID \"{actionID}\") \"{result}\")".format(actionID=action_id, result="success")
+        print(precise_move_result_gl)
         self.send(self.task_manager_uri[robot_id], precise_move_result_gl)
         
     def straight_back_move(self, robot_id, action_id, vertex):
@@ -427,22 +450,27 @@ class NavigationControllerAgent(ArbiAgent):
             gen = self.wait_for_data(action_id)
             while True:
                 straight_back_move_gl = next(gen)
+                if straight_back_move_gl is not None:
+                    break
                 yield
         except StopIteration:
             pass
         straight_back_move_result_gl = "(MoveResult (actionID \"{actionID}\") \"{result}\")".format(actionID=action_id, result="success")
+        print(straight_back_move_result_gl)
         self.send(self.task_manager_uri[robot_id], straight_back_move_result_gl)
         
     def cancel_move(self, robot_id):
-        if len(self.navigation_controller.current_command[robot_id]) == 1:  # check whether robot is stationary
-            stationary_check = (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1] ==
-                                self.navigation_controller.current_command[robot_id][
-                                    0])  # True if robot is stationary and will be stationary
-        else:
-            stationary_check = False
+        # if len(self.navigation_controller.current_command[robot_id]) == 1:  # check whether robot is stationary
+        #     # stationary_check = (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1] ==
+        #     #                     self.navigation_controller.current_command[robot_id][
+        #     #                         0])  # True if robot is stationary and will be stationary
+        #     stationary_check = (self.real_goal[robot_id] == -1)
+        # else:
+        #     stationary_check = False
 
-        if self.navigation_controller.current_command[
-            robot_id] and not stationary_check:  # check whether robot has path and not stationary
+        # if self.navigation_controller.current_command[
+        #     robot_id] and not stationary_check:  # check whether robot has path and not stationary
+        if self.navigation_controller.current_command[robot_id]:
             ''' if robot is avoiding against counterpart robot, path of the robot is split
                 e.g. self.NC.robotTM_set[avoidingRobotID] == [[path], [path]]
                      self.NC.robotTM_set[counterpartRobotID] == [[path]] '''
@@ -473,6 +501,8 @@ class NavigationControllerAgent(ArbiAgent):
                             yield
                     except StopIteration:
                         pass
+
+                    self.data_received.append(Message(False, cancel_response_gl))
 
                     if cancel_response_gl.get_name() == "fail":
                         print("[Response CancelMove1]\t{RobotID}: FAIL".format(RobotID=robot_id))
@@ -510,9 +540,13 @@ class NavigationControllerAgent(ArbiAgent):
                         gen = self.wait_for_data(action_id)
                         while True:
                             cancel_response_gl = next(gen)
+                            if cancel_response_gl is not None:
+                                break
                             yield
                     except StopIteration:
                         pass
+
+                    self.data_received.append(Message(False, cancel_response_gl))
 
                     if cancel_response_gl.get_name() == "fail":
                         print("[Response CancelMove2]\t{RobotID}: FAIL".format(RobotID=robot_id))
@@ -520,6 +554,7 @@ class NavigationControllerAgent(ArbiAgent):
                         result = cancel_response_gl.get_expression(
                             1).as_value().string_value()  # "success" if Cancel request is done
                         print("[Response CancelMove2]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
+
         yield "finished"
 
     def control_request(self, robot_id, collide, replan, count):
@@ -561,29 +596,33 @@ class NavigationControllerAgent(ArbiAgent):
             else:
                 continue
 
-        if len(self.navigation_controller.current_command[robot_id]) == 1:  # check whether robot is stationary
-            stationary_check = (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1]) and (
-                    self.actual_goal[robot_id] == -1)  # True if robot is stationary and will be stationary
-        else:
-            stationary_check = False
+        # if len(self.navigation_controller.current_command[robot_id]) == 1:  # check whether robot is stationary
+        #     # stationary_check = (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1]) and (
+        #     #         self.actual_goal[robot_id] == -1)  # True if robot is stationary and will be stationary
+        #     stationary_check = (self.real_goal[robot_id] == -1)
+        # else:
+        #     stationary_check = False
 
-        if self.navigation_controller.current_command[robot_id] and (
-                not stationary_check):  # check whether robot has path and not stationary
+        # print(str(robot_id) + " is now tested..." + str(stationary_check))
+
+        # if self.navigation_controller.current_command[robot_id] and (
+        #         not stationary_check):  # check whether robot has path and not stationary
+        if self.navigation_controller.current_command[robot_id]:
             ''' if robot is avoiding against counterpart robot, path of the robot is split
                 e.g. self.NC.robotTM_set[avoidingRobotID] == [[path], [path]]
                      self.NC.robotTM_set[counterpartRobotID] == [[path]] '''
 
             print(self.navigation_controller.command_set)
+            print("length = " + str(len(self.navigation_controller.command_set[robot_id])))
 
             if len(self.navigation_controller.command_set[robot_id]) == 1:  # not split path (not avoiding path)
-                print("single path control")
+                print("single path control " + str(robot_id))
                 yield from self.single_path_control(c, robot_id)
-                print("single path control done")
-
+                print("single path control done" + str(robot_id))
             elif len(self.navigation_controller.command_set[robot_id]) >= 2:  # split path (avoiding path)
-                print("multi path control")
+                print("multi path control" + str(robot_id))
                 yield from self.multi_path_control(c, robot_id)
-                print("multi path control done")
+                print("multi path control done" + str(robot_id))
 
         if collide:
             self.collide_flag[robot_id] = False
@@ -748,7 +787,7 @@ class NavigationControllerAgent(ArbiAgent):
                     print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
                                                                                  GoalID=self.actual_goal[robot_id]))
                     self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
-                    self.actual_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
+                    # self.actual_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                     self.real_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                 else:
                     pass
@@ -828,6 +867,7 @@ class NavigationControllerAgent(ArbiAgent):
         return path_response
 
     def wait_for_data(self, action_id):
+        print("waiting " + action_id)
         while True:
             _action_id = None
             result_gl = None
@@ -836,8 +876,8 @@ class NavigationControllerAgent(ArbiAgent):
             for msg in self.data_received:
                 gl = msg.gl
                 _action_id = gl.get_expression(0).as_generalized_list().get_expression(0).as_value().string_value()
-                print("_action_id is " + str(_action_id) + "and action_id is " + str(action_id) + "so result is " + str(
-                    str(action_id).replace("\"", "") == str(_action_id)))
+                print("_action_id is " + str(_action_id) + " and action_id is " + str(action_id) + " so result is " + str(
+                    str(action_id).replace("\"", "") == str(_action_id)) + " and original gl is " + str(gl))
                 if str(action_id).replace("\"", "") == str(_action_id):
                     result_gl = gl
                     msg.survive_flag = False
