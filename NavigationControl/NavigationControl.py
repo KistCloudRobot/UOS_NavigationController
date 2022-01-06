@@ -472,6 +472,8 @@ class NavigationControl:
 
 if __name__ == "__main__":
     AMR_IDs = ['AMRLIFT0', 'AMRLIFT1', 'AMRTOW0', 'AMRTOW1']
+    AMR_TOW_IDs = ['AMRTOW0', 'AMRTOW1']
+    AMR_LIFT_IDs = ['AMRLIFT0', 'AMRLIFT1']
     navcont = NavigationControl(AMR_IDs)
     multipaths = {'AMRLIFT0': [1, 2, 4, 6, 5], 'AMRLIFT1': [3, 3, 2, 4, 6, 7, 7, 8], 'AMRTOW0': [], 'AMRTOW1': []}
     navcont.get_multipath_plan(multipaths)

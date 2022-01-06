@@ -1,6 +1,7 @@
 import time
 import pathlib
 import copy
+import uuid
 from threading import Thread
 from typing import List
 
@@ -65,13 +66,6 @@ class NavigationControllerAgent(ArbiAgent):
         }  # agent adress of robotBehaviorInterface(robotBI)
 
         self.SMM_name = "agent://www.arbi.com/Local/MapManager"  # agent address of SemanticMapManager(SMM)
-
-        self.BI_actionID = {
-            "AMR_LIFT1": ["\"1\"", "\"5\""],
-            "AMR_LIFT2": ["\"2\"", "\"6\""],
-            "AMR_TOW1": ["\"3\"", "\"7\""],
-            "AMR_TOW2": ["\"4\"", "\"8\""]
-        }  # actionID [moveID, cancelID] to send to robotBI
 
         self.AMR_IDs = ["AMR_LIFT1", "AMR_LIFT2", "AMR_TOW1", "AMR_TOW2"]  # AMR IDs
         self.AMR_LIFT_IDs = list()  # LIFT IDs
@@ -234,7 +228,8 @@ class NavigationControllerAgent(ArbiAgent):
         if robot_id_BI:  # check whether robot_id_BI is empty
             for robot_id in robot_id_BI:
                 self.semantic_map_manager_notify(robot_id)  # # notify SMM of same control information
-                if (not self.avoid_flag[robot_id]) and (not self.move_flag[robot_id]):
+                # if (not self.avoid_flag[robot_id]) and (not self.move_flag[robot_id]):
+                if not self.avoid_flag[robot_id]:
                     print("[INFO] {RobotID} cancel move".format(RobotID=robot_id))
                     self.generator_queue.append(self.cancel_move(robot_id))
                     print("[INFO] {RobotID} Control request by <COLLIDABLE> Notification [{num}]".format(
@@ -244,7 +239,7 @@ class NavigationControllerAgent(ArbiAgent):
                     self.count = self.count + 1
 
     def on_request(self, sender, request):  # executed when the agent gets request
-        print("[on Request] " + request)
+        print("[on Request] " + request + sender)
         temp_gl = GLFactory.new_gl_from_gl_string(request)
         print("[on Request] " + temp_gl.get_name())
         if temp_gl.get_name() == "Move":  # "Move" request from robotTM
@@ -272,8 +267,10 @@ class NavigationControllerAgent(ArbiAgent):
 
             # robot_goal[robot_id] = actual_goal  # robotID-goalVertex pair
             robot_goal[robot_id] = real_goal
-            robot_id_replan, robot_id_BI = self.navigation_controller.allocate_goal(robot_goal,
+            _robot_id_replan, _robot_id_BI = self.navigation_controller.allocate_goal(robot_goal,
                                                                                     self.cur_robot_pose)  # allocate goal in NC
+            robot_id_replan = copy.copy(_robot_id_replan)
+            robot_id_BI = copy.copy(_robot_id_BI)
             ''' robot_id_replan: robot which needs to get replanning -> MAPF
                 robot_id_BI: robotID that has any change of its path and notify the information of robotID to robotBI '''
 
@@ -407,7 +404,7 @@ class NavigationControllerAgent(ArbiAgent):
             response_gl = GLFactory.new_gl_from_gl_string(response_str)
             if response_gl.get_name() != "fail":
                 try:
-                    gen = self.wait_for_data(action_id)
+                    gen = self.wait_for_data(action_id, robot_id)
                     while True:
                         guide_move_response = next(gen)
                         if guide_move_response is not None:
@@ -447,7 +444,7 @@ class NavigationControllerAgent(ArbiAgent):
             response_gl = GLFactory.new_gl_from_gl_string(response_gl_str)
             if response_gl.get_name() != "fail":
                 try:
-                    gen = self.wait_for_data(action_id)
+                    gen = self.wait_for_data(action_id, robot_id)
                     while True:
                         precise_move_response = next(gen)
                         if precise_move_response is not None:
@@ -485,7 +482,7 @@ class NavigationControllerAgent(ArbiAgent):
             response_gl = GLFactory.new_gl_from_gl_string(response_str)
             if response_gl.get_name() != "fail":
                 try:
-                    gen = self.wait_for_data(action_id)
+                    gen = self.wait_for_data(action_id, robot_id)
                     while True:
                         straight_back_move_response = next(gen)
                         if straight_back_move_response is not None:
@@ -519,43 +516,43 @@ class NavigationControllerAgent(ArbiAgent):
 
             if len(self.navigation_controller.command_set[robot_id]) == 1:  # not split path (not avoiding path)
                 ### Cancel current control request if robot is moving ###
-                if self.move_flag[robot_id]:  # check whether robot is moving
-                    ''' If robot is moving now, current path should be canceled.
-                        Cancel actionID:
-                            "AMR_LIFT1": "\"5\""
-                            "AMR_LIFT2": "\"6\""
-                            "AMR_TOW1": "\"7\""
-                            "AMR_TOW2": "\"8\""
-                        cancelMove gl format: (cancelMove (actionID $actionID)) '''
+                # if self.move_flag[robot_id]:  # check whether robot is moving
+                ''' If robot is moving now, current path should be canceled.
+                    Cancel actionID:
+                        "AMR_LIFT1": "\"5\""
+                        "AMR_LIFT2": "\"6\""
+                        "AMR_TOW1": "\"7\""
+                        "AMR_TOW2": "\"8\""
+                    cancelMove gl format: (cancelMove (actionID $actionID)) '''
 
-                    temp_Cancel_gl = "(cancelMove (actionID {actionID}))"
-                    action_id = self.BI_actionID[robot_id][1]
-                    Cancel_gl = temp_Cancel_gl.format(actionID=action_id)  # Cancel actionID
-                    self.move_flag[robot_id] = False  # update moving state of robot
-                    print("[Request CancelMove1]\t{RobotID}".format(RobotID=robot_id))
-                    self.request(self.behavior_interface_uri[robot_id], Cancel_gl)  # get response of Cancel request
-                    try:
-                        gen = self.wait_for_data(action_id)
-                        while True:
-                            cancel_response_gl = next(gen)
-                            if cancel_response_gl is not None:
-                                break
-                            print("[CANCEL_MOVE1]yield waiting " + action_id)
-                            yield
-                    except StopIteration:
-                        pass
+                temp_Cancel_gl = "(cancelMove (actionID {actionID} \"{robotID}\"))"
+                action_id = "\"" + str(uuid.uuid4()) + "\""
+                Cancel_gl = temp_Cancel_gl.format(actionID=action_id, robotID=robot_id)  # Cancel actionID
+                self.move_flag[robot_id] = False  # update moving state of robot
+                print("[Request CancelMove1]\t{RobotID}".format(RobotID=robot_id))
+                self.request(self.behavior_interface_uri[robot_id], Cancel_gl)  # get response of Cancel request
+                try:
+                    gen = self.wait_for_data(action_id, robot_id)
+                    while True:
+                        cancel_response_gl = next(gen)
+                        if cancel_response_gl is not None:
+                            break
+                        print("[CANCEL_MOVE1]yield waiting " + action_id)
+                        yield
+                except StopIteration:
+                    pass
 
-                    if cancel_response_gl.get_name() == "fail":
-                        print("[Response CancelMove1]\t{RobotID}: FAIL".format(RobotID=robot_id))
-                    else:
-                        result = cancel_response_gl.get_expression(
-                            1).as_value().string_value()  # "success" if Cancel request is done
-                        print("[Response CancelMove1]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
-                        self.data_received.append(Message(False, cancel_response_gl))
-                        cancel_gl = GLFactory.new_gl_from_gl_string(
-                            "(cancelMove (actionID " + self.BI_actionID[robot_id][0] + ") \"success\")")
-                        print(cancel_gl)
-                        self.data_received.append(Message(False, cancel_gl))
+                if cancel_response_gl.get_name() == "fail":
+                    print("[Response CancelMove1]\t{RobotID}: FAIL".format(RobotID=robot_id))
+                else:
+                    result = cancel_response_gl.get_expression(
+                        1).as_value().string_value()  # "success" if Cancel request is done
+                    print("[Response CancelMove1]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
+                    self.data_received.append(Message(False, cancel_response_gl))
+                    cancel_gl = GLFactory.new_gl_from_gl_string(
+                        "(cancelMove (actionID " + action_id + " \""+robot_id+"\") \"success\")")
+                    print(cancel_gl)
+                    self.data_received.append(Message(False, cancel_gl))
             elif len(self.navigation_controller.command_set[robot_id]) >= 2:  # split path (avoiding path)
                 self.avoid_flag[robot_id] = True  # update avoiding state of robot
                 counterpart_check = {0: 1, 1: 0, 2: 3, 3: 2}
@@ -574,35 +571,35 @@ class NavigationControllerAgent(ArbiAgent):
                     -> [["AMR_LIFT2", [0, 1]]] condition of 1th path which means start after "AMR_LIFT2" passes 1th element(5) in 0th path([4, 5, 6, 7, 8, 9]) '''
 
                 ### Cancel current control request if robot is moving ###
-                if self.move_flag[robot_id]:  # check whether robot is moving
-                    temp_Cancel_gl = "(cancelMove (actionID {actionID}))"
-                    action_id = self.BI_actionID[robot_id][1]
-                    Cancel_gl = temp_Cancel_gl.format(actionID=action_id)  # Cancel actionID
-                    self.move_flag[robot_id] = False  # update moving state of robot
-                    print("[Request CancelMove2]\t{RobotID}".format(RobotID=robot_id))
-                    self.request(self.behavior_interface_uri[robot_id], Cancel_gl)  # get response of Cancel request
+                # if self.move_flag[robot_id]:  # check whether robot is moving
+                temp_Cancel_gl = "(cancelMove (actionID {actionID} \"{robotID}\"))"
+                action_id = "\"" + str(uuid.uuid4()) + "\""
+                Cancel_gl = temp_Cancel_gl.format(actionID=action_id, robotID=robot_id)  # Cancel actionID
+                self.move_flag[robot_id] = False  # update moving state of robot
+                print("[Request CancelMove2]\t{RobotID}".format(RobotID=robot_id))
+                self.request(self.behavior_interface_uri[robot_id], Cancel_gl)  # get response of Cancel request
 
-                    try:
-                        gen = self.wait_for_data(action_id)
-                        while True:
-                            cancel_response_gl = next(gen)
-                            if cancel_response_gl is not None:
-                                break
-                            print("[CANCEL_MOVE2]yield waiting " + action_id)
-                            yield
-                    except StopIteration:
-                        pass
+                try:
+                    gen = self.wait_for_data(action_id, robot_id)
+                    while True:
+                        cancel_response_gl = next(gen)
+                        if cancel_response_gl is not None:
+                            break
+                        print("[CANCEL_MOVE2]yield waiting " + action_id)
+                        yield
+                except StopIteration:
+                    pass
 
-                    if cancel_response_gl.get_name() == "fail":
-                        print("[Response CancelMove2]\t{RobotID}: FAIL".format(RobotID=robot_id))
-                    else:
-                        result = cancel_response_gl.get_expression(
-                            1).as_value().string_value()  # "success" if Cancel request is done
-                        print("[Response CancelMove2]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
-                        self.data_received.append(Message(False, cancel_response_gl))
-                        # cancel_gl = GLFactory.new_gl_from_gl_string(
-                        #     "(cancelMove (actionID " + self.BI_actionID[robot_id][0] + ") \"success\")")
-                        # self.data_received.append(Message(False, cancel_gl))
+                if cancel_response_gl.get_name() == "fail":
+                    print("[Response CancelMove2]\t{RobotID}: FAIL".format(RobotID=robot_id))
+                else:
+                    result = cancel_response_gl.get_expression(
+                        1).as_value().string_value()  # "success" if Cancel request is done
+                    print("[Response CancelMove2]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
+                    self.data_received.append(Message(False, cancel_response_gl))
+                    # cancel_gl = GLFactory.new_gl_from_gl_string(
+                    #     "(cancelMove (actionID " + self.BI_actionID[robot_id][0] + ") \"success\")")
+                    # self.data_received.append(Message(False, cancel_gl))
 
         yield "finished"
 
@@ -688,9 +685,11 @@ class NavigationControllerAgent(ArbiAgent):
         robot_index = self.AMR_IDs.index(robot_id)
         c_robot_id = self.AMR_IDs[counterpart_check[robot_index]]  # get robotID of counterpart robot
         self.avoid_flag[c_robot_id] = True
-        currnet_command_set = copy.copy(self.navigation_controller.command_set)  # get path set
-        current_command_set_start_condition = copy.copy(
-            self.navigation_controller.command_start_condition)  # get start condition of robot
+        # currnet_command_set = copy.copy(self.navigation_controller.command_set)  # get path set
+        currnet_command_set = self.navigation_controller.command_set
+        # current_command_set_start_condition = copy.copy(
+        #     self.navigation_controller.command_start_condition)  # get start condition of robot
+        current_command_set_start_condition = self.navigation_controller.command_start_condition
         ''' self.NC.robotTM_scond: start condition of split path
                             e.g. AMR_LIFT1 is avoiding robot and AMR_LIFT2 is counterpart robot
                                  self.NC.robotTM_set["AMR_LIFT1"] == [[1, 2, 3], [4, 5, 6, 7]]
@@ -744,7 +743,7 @@ class NavigationControllerAgent(ArbiAgent):
 
             move_gl_str_format = "(move (actionID {actionID}) {path})"
             path_gl = self.path_gl_generator(robot_path, robot_id)  # convert path list to path gl
-            action_id = self.BI_actionID[robot_id][0]
+            action_id = "\"" + str(uuid.uuid4()) + "\""
             move_gl = move_gl_str_format.format(actionID=action_id, path=path_gl)
             self.semantic_map_manager_notify(robot_id)
 
@@ -753,7 +752,7 @@ class NavigationControllerAgent(ArbiAgent):
             move_response = self.request(self.behavior_interface_uri[robot_id],
                                          move_gl)  # request move control to robotBI, get response of request                                    print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response)))
 
-            gen = self.wait_for_data(action_id)
+            gen = self.wait_for_data(action_id, robot_id)
             print("[RM2] wait for data " + str(action_id))
 
             move_response_gl = None
@@ -763,7 +762,6 @@ class NavigationControllerAgent(ArbiAgent):
                 if move_response_gl is not None:
                     break
                 yield
-
             print(c + "[response Move2]\t\t{RobotID}\t{response}".format(RobotID=robot_id,
                                                                          response=str(
                                                                              move_response)))
@@ -775,6 +773,7 @@ class NavigationControllerAgent(ArbiAgent):
                                                                                    Result=str(result)))
         self.avoid_flag[robot_id] = False  # update avoiding state of robot
         self.avoid_flag[c_robot_id] = False  # update avoiding state of robot
+        yield from self.async_sleep(0.5)
         yield from self.goal_check(robot_id, action_id)
         print("jobs done! by MPC")
 
@@ -784,11 +783,12 @@ class NavigationControllerAgent(ArbiAgent):
             print("[SINGLE_PATH_CONTROL]yield waiting current command set")
             yield
         if self.navigation_controller.current_command[robot_id]:
-            robot_path = copy.copy(self.navigation_controller.current_command[robot_id])
+            # robot_path = copy.copy(self.navigation_controller.current_command[robot_id])
+            robot_path = self.navigation_controller.command_set[robot_id][0]
             # print("[INFO] {RobotID} got new path".format(RobotID=robot_id))
         move_gl_str_format = "(move (actionID {actionID}) {path})"
         path_gl = self.path_gl_generator(robot_path, robot_id)  # convert path list to path gl
-        action_id = self.BI_actionID[robot_id][0]
+        action_id = "\"" + str(uuid.uuid4()) + "\""
         move_gl = move_gl_str_format.format(actionID=action_id, path=path_gl)
         self.semantic_map_manager_notify(robot_id)
         print(
@@ -797,7 +797,7 @@ class NavigationControllerAgent(ArbiAgent):
         move_response = self.request(self.behavior_interface_uri[robot_id],
                                      move_gl)  # request move control to robotBI, get response of request
         try:
-            gen = self.wait_for_data(action_id)
+            gen = self.wait_for_data(action_id, robot_id)
             while True:
                 move_response_gl = next(gen)
                 print("[SINGLE_PATH_CONTROL]yield waiting move_response_gl : " + str(move_response_gl) + " // action_id is " + str(action_id))
@@ -806,6 +806,7 @@ class NavigationControllerAgent(ArbiAgent):
                 yield
         except StopIteration:
             pass
+
         print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response_gl)))
         print("[Response Move1] " + str(move_response_gl.get_name().lower()))
         if move_response != "fail" and str(move_response_gl.get_name()).lower() != "cancelmove":
@@ -814,6 +815,7 @@ class NavigationControllerAgent(ArbiAgent):
             print(c + "[response Move1]\t\t{RobotID}\t{Path}: {Result}".format(RobotID=robot_id,
                                                                                Path=str(path_gl),
                                                                                Result=str(result)))
+            yield from self.async_sleep(0.5)
             yield from self.goal_check(robot_id, action_id)
         print("jobs done! by SPC")
 
@@ -830,17 +832,17 @@ class NavigationControllerAgent(ArbiAgent):
             # print("[INFO] {RobotID} has no path".format(RobotID=robot_id))
             pass
 
-    def path_gl_generator(self, path, robot_id):  # convert path list to path gl
+    def path_gl_generator(self, in_path, robot_id):  # convert path list to path gl
         ''' path gl format: (path $v_id1 $v_id2 ….) '''
-
-        if path[0] != self.cur_robot_pose[robot_id][0]:
-            path.insert(0, self.cur_robot_pose[robot_id][0])
+        path = copy.copy(in_path)
+        # if path[0] != self.cur_robot_pose[robot_id][0]:
+        #     path.insert(0, self.cur_robot_pose[robot_id][0])
         path_gl = "(path"
         for path_i in path:
             path_gl += " "
             path_gl += str(path_i)
         path_gl += ")"
-
+        print('1111111111111', path, path_gl)
         return path_gl
 
     def goal_check(self, robot_id, action_id):  # check whether robot terminates its goal and if it terminates, send result of goal to robotTM
@@ -889,6 +891,24 @@ class NavigationControllerAgent(ArbiAgent):
             print('robot ID : ' + str(robot_id))
             print('path : ' + str(path))
         self.navigation_controller.get_multipath_plan(multipaths)  # update path in NC
+        command_set = self.navigation_controller.command_set
+
+        for current_robot_key in command_set.keys():
+            current_robot_command = command_set[current_robot_key]
+            for path_i in range(len(current_robot_command)):
+                if len(current_robot_command) > path_i > 0:
+                    last_element = current_robot_command[path_i-1][-1]
+                    first_element = current_robot_command[path_i][0]
+                    if last_element != first_element:
+                        current_robot_command[path_i].insert(0, last_element)
+
+        print("[MultiRobotPathUpdate] " + str(command_set))
+        print("[MultiRobotPathUpdate] " + str(self.navigation_controller.command_set))
+        # self.navigation_controller.current_command[id] = []  # a sequence of vertices
+        # self.navigation_controller.command_set[id] = []  # [robotTM, robotTM, robotTM, ...]
+        # self.navigation_controller.command_start_condition[id] = []  # start condition of robotTM
+        # self.navigation_controller.PlanExecutedIdx[id] = [-1,-1]  # [i,j] Save the last index of NavPath[i][j] which the robot follows
+        # self.navigation_controller.Flag_terminate[id] = -1
         self.navigation_controller.update_robot_TM(robot_pose)  # update pose in NC
 
         return robot_ids
@@ -937,8 +957,8 @@ class NavigationControllerAgent(ArbiAgent):
 
         return path_response
 
-    def wait_for_data(self, action_id):
-        print("waiting " + action_id)
+    def wait_for_data(self, action_id, robot_id):
+        print("waiting " + action_id + " from " + robot_id)
         while True:
             _action_id = None
             result_gl = None
@@ -946,14 +966,22 @@ class NavigationControllerAgent(ArbiAgent):
             # print("i'm looking for action_id " + str(action_id))
             for msg in self.data_received:
                 gl = msg.gl
-                _action_id = gl.get_expression(0).as_generalized_list().get_expression(0).as_value().string_value()
-
+                action_id_gl = gl.get_expression(0).as_generalized_list()
+                _action_id = action_id_gl.get_expression(0).as_value().string_value()
                 print("_action_id is " + str(_action_id) + " and action_id is " + str(action_id) + " so result is " + str(
                     str(action_id).replace("\"", "") == str(_action_id)) + " and original gl is " + str(gl))
                 if str(action_id).replace("\"", "") == str(_action_id):
                     result_gl = gl
                     msg.survive_flag = False
                     print("gl removed : " + str(gl))
+
+                if action_id_gl.get_expression_size() > 1:
+                    _robot_id = action_id_gl.get_expression(1).as_value().string_value()
+                    if robot_id == _robot_id:
+                        result_gl = gl
+                        msg.survive_flag = False
+                        print("gl removed : " + str(gl))
+
             yield result_gl
 
     def cleanse_list(self):
