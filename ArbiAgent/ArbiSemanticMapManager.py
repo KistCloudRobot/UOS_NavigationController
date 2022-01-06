@@ -14,10 +14,10 @@ sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
 from MapManagement.MapMOS import MapMOS
 from MapManagement.MapCloudlet import MapCloudlet
-from DataType.RobotInfo import RobotInfo
-from DataType.CallInfo import CallInfo
+from DataTypes.RobotInfo import RobotInfo
+from DataTypes.CallInfo import CallInfo
 
-broker_url = "tcp://192.168.0.14:61313"
+broker_url = "tcp://172.16.165.106:61313"
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
 
 
@@ -54,11 +54,11 @@ class MapManagerDataSource(DataSource):
         self.AMR_LIFT_init = {"AMR_LIFT1": 201, "AMR_LIFT2": 202} # Initial vertex of LIFT
         self.AMR_TOW_init = {"AMR_TOW1": 203, "AMR_TOW2": 204} # Initial vertex of TOW
 
-        self.Rack_LIFT_init = {'RACK_LIFT0': 3, 'RACK_LIFT1': 13, 'RACK_LIFT2': 15,
-                               'RACK_LIFT3': 22, 'RACK_LIFT4': 4, 'RACK_LIFT5': 18}
-        self.Rack_TOW_init = {'RACK_TOW0': 23, 'RACK_TOW1': 20} # Initial vertex of TOW Rack
+        self.Rack_LIFT_init = {'RACK_LIFT0': 18, 'RACK_LIFT1': 19, 'RACK_LIFT2': 5,
+                               'RACK_LIFT3': 4, 'RACK_LIFT4': 13, 'RACK_LIFT5': 12}
+        self.Rack_TOW_init = {'RACK_TOW0': 20, 'RACK_TOW1': 23} # Initial vertex of TOW Rack
 
-        self.Cargo_init = {"CARGO0": 4, "CARGO1": 23, 'CARGO2': 18, 'CARGO3': 22} # Initial vertex of Cargo
+        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19,"CARGO3": 4,"CARGO1": 5} # Initial vertex of Cargo
 
         self.Door_init = {'Door0': 0} # Initial status of Door
         self.MC = MapCloudlet(self.map_file, self.AMR_LIFT_init, self.AMR_TOW_init, self.Rack_TOW_init,
@@ -70,7 +70,7 @@ class MapManagerDataSource(DataSource):
         gl_notify = GLFactory.new_gl_from_gl_string(content)
 
         if gl_notify.get_name() == "RobotInfo": # "RobotInfo" notification from ltm
-            print(content)
+            #print(content)
             ''' RobotInfo gl format: (RobotInfo $robot_id $x $y $loading $speed $battery)'''
             temp_RobotInfo = RobotInfo() # RobotInfo class
             temp_RobotInfo.id = gl_notify.get_expression(0).as_value().string_value() # get robotID
@@ -353,7 +353,7 @@ class MapManagerAgent(ArbiAgent):
 
         while True:
             time.sleep(1)
-            temp_Collidable_info = self.ltm.MC.detect_collision(10)
+            temp_Collidable_info = self.ltm.MC.detect_collision(1000)
             temp_Collidable_num = len(temp_Collidable_info)
             if temp_Collidable_num:
                 temp_notify = "(Collidable {num}"

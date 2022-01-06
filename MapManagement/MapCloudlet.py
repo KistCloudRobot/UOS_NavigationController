@@ -63,7 +63,7 @@ class MapCloudlet:
             pos = [self.static_map.VertexPos[vertex][0], self.static_map.VertexPos[vertex][2]]
             self.CARGO[id] = {'timestamp': [t_init], 'pos': [pos], 'vertex': [[vertex, vertex]],
                               'load_id': [[-1, -1]]}
-            
+            '''
             if vertex in list(RACK_LIFT_init.values()):
                 RACK_LIFT_init_list = list(RACK_LIFT_init.values())
                 vertex_index = RACK_LIFT_init_list.index(vertex)
@@ -76,7 +76,7 @@ class MapCloudlet:
                 RACK_TOW_id = RACK_TOW_init.keys()[vertex_index]
                 self.CARGO[id]['load_id'] = [[-1, RACK_TOW_id]]
                 self.RACK_TOW[RACK_TOW_id] = [[-1, id]]
-            
+            '''
 
         # initialize the door
         self.Door = {}

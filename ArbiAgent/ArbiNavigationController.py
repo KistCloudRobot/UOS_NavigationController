@@ -1,6 +1,7 @@
 import time
 import pathlib
 import copy
+from threading import Thread
 from typing import List
 
 from UOS_NavigationController.DataTypes.Message import Message
@@ -14,7 +15,7 @@ from UOS_NavigationController.MapManagement.MapMOS import MapMOS
 from UOS_NavigationController.NavigationControl.NavigationControl import NavigationControl
 
 agent_mapf_uri = "agent://www.arbi.com/Local/MultiAgentPathFinder"
-broker_url = "tcp://172.16.165.222:61313"
+broker_url = "tcp://172.16.165.106:61313"
 
 
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
@@ -125,9 +126,16 @@ class NavigationControllerAgent(ArbiAgent):
 
         self.main_loop()
 
-    def main_loop(self):
+    def goal_check_thread(self):
         goal_check_gen = self.goal_check()
+        while True:
+            next(goal_check_gen)
+            time.sleep(0.1)
+
+    def main_loop(self):
         cleanse_list_gen = self.cleanse_list()
+        goal_check_thread = Thread(target=self.goal_check_thread)
+        goal_check_thread.start()
         while True:
             clean_generator_queue = []
             for generator in self.generator_queue:
@@ -140,16 +148,18 @@ class NavigationControllerAgent(ArbiAgent):
                     pass
             self.generator_queue = clean_generator_queue
             next(cleanse_list_gen)
-            next(goal_check_gen)
-
             time.sleep(0.5)
 
     def request(self, receiver: str, request: str) -> str:
         print("we sent request : " + request)
         return self.message_toolkit.request(receiver, request)
 
+    def send(self, receiver: str, data: str):
+        print("we sent data : " + data)
+        return self.message_toolkit.send(receiver, data)
+
     def on_data(self, sender: str, data: str):
-        self.data_received.append(Message(True, GLFactory.new_gl_from_gl_string(data)))
+        self.data_received.append(Message(False, GLFactory.new_gl_from_gl_string(data)))
         print("we've got data : " + data)
 
     def on_notify(self, sender, notification):  # executed when the agent gets notification
@@ -166,7 +176,7 @@ class NavigationControllerAgent(ArbiAgent):
             ''' Collidable gl format: (Collidable $num (pair $robot_id $robot_id $time), …) 
                                     num: number of collidable set
                                     time: in which collision is expected '''
-
+            print('[ON NOTIFY] COLLIDABLE!!!!!!!! ' + str(notification))
             self.update_collidable(temp_gl)
 
     def update_collidable(self, temp_gl):
@@ -372,17 +382,29 @@ class NavigationControllerAgent(ArbiAgent):
             print("what?", str(temp_gl))
             return "(fail)"
 
+    def async_sleep(self, seconds):
+        end_time = time.time() + seconds
+        print("current time is " + str(time.time()) + " and end time is " + str(end_time))
+        while True:
+            if time.time() > end_time:
+                print("end waiting")
+                break
+            else:
+                # print("current time is " + str(time.time()) + " and end time is " + str(end_time))
+                yield
+
     def guide_move(self, robot_id, action_id, vertex, direction):
         counterpart_check = {0: 1, 1: 0, 2: 3, 3: 2}
         robot_index = self.AMR_IDs.index(robot_id)
         c_robot_id = self.AMR_IDs[counterpart_check[robot_index]]  # get robotID of counterpart robot
         while True:
-            time.sleep(1)
+            yield from self.async_sleep(1)
             if not (vertex in self.navigation_controller.current_command[c_robot_id][:3]):
                 print("[INFO] {robot_id} no collision expected during {vertex} work".format(robot_id=robot_id, vertex=vertex))
                 break
             else:
                 print("[INFO] {robot_id} collision expected during {vertex} work -> waiting".format(robot_id=robot_id, vertex=vertex))
+                yield
         
         ''' (guideMove (actionID $actionID) $vertex $direction) '''
         temp_guide_move_gl = "(guideMove (actionID \"{actionID}\") {vertex} \"{direction}\")"
@@ -394,10 +416,12 @@ class NavigationControllerAgent(ArbiAgent):
                 guide_move_gl = next(gen)
                 if guide_move_gl is not None:
                     break
+                print("[GUIDE_MOVE]yield waiting " + action_id)
                 yield
         except StopIteration:
             pass
         guide_move_result_gl = "(MoveResult (actionID \"{actionID}\") \"{result}\")".format(actionID=action_id, result="success")
+
         print(guide_move_result_gl)
         self.send(self.task_manager_uri[robot_id], guide_move_result_gl)    
         
@@ -406,12 +430,14 @@ class NavigationControllerAgent(ArbiAgent):
         robot_index = self.AMR_IDs.index(robot_id)
         c_robot_id = self.AMR_IDs[counterpart_check[robot_index]]  # get robotID of counterpart robot
         while True:
-            time.sleep(1)
+            yield from self.async_sleep(1)
+
             if not (vertex in self.navigation_controller.current_command[c_robot_id][:3]):
                 print("[INFO] {robot_id} no collision expected during {vertex} work".format(robot_id=robot_id, vertex=vertex))
                 break
             else:
                 print("[INFO] {robot_id} collision expected during {vertex} work -> waiting".format(robot_id=robot_id, vertex=vertex))
+                yield
                 
         ''' (preciseMove (actionID $actionID) $vertex) '''
         temp_precise_move_gl = "(preciseMove (actionID \"{actionID}\") {vertex})"
@@ -423,6 +449,7 @@ class NavigationControllerAgent(ArbiAgent):
                 precise_move_gl = next(gen)
                 if precise_move_gl is not None:
                     break
+                print("[PRECISE_MOVE]yield waiting " + action_id)
                 yield
         except StopIteration:
             pass
@@ -435,7 +462,8 @@ class NavigationControllerAgent(ArbiAgent):
         robot_index = self.AMR_IDs.index(robot_id)
         c_robot_id = self.AMR_IDs[counterpart_check[robot_index]]  # get robotID of counterpart robot
         while True:
-            time.sleep(1)
+            yield from self.async_sleep(1)
+
             if not (vertex in self.navigation_controller.current_command[c_robot_id][:3]):
                 print("[INFO] {robot_id} no collision expected during {vertex} work".format(robot_id=robot_id, vertex=vertex))
                 break
@@ -452,6 +480,7 @@ class NavigationControllerAgent(ArbiAgent):
                 straight_back_move_gl = next(gen)
                 if straight_back_move_gl is not None:
                     break
+                print("[STRAIGHT_BACK_MOVE]yield waiting " + action_id)
                 yield
         except StopIteration:
             pass
@@ -498,11 +527,10 @@ class NavigationControllerAgent(ArbiAgent):
                             cancel_response_gl = next(gen)
                             if cancel_response_gl is not None:
                                 break
+                            print("[CANCEL_MOVE1]yield waiting " + action_id)
                             yield
                     except StopIteration:
                         pass
-
-                    self.data_received.append(Message(False, cancel_response_gl))
 
                     if cancel_response_gl.get_name() == "fail":
                         print("[Response CancelMove1]\t{RobotID}: FAIL".format(RobotID=robot_id))
@@ -510,6 +538,11 @@ class NavigationControllerAgent(ArbiAgent):
                         result = cancel_response_gl.get_expression(
                             1).as_value().string_value()  # "success" if Cancel request is done
                         print("[Response CancelMove1]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
+                        self.data_received.append(Message(False, cancel_response_gl))
+                        cancel_gl = GLFactory.new_gl_from_gl_string(
+                            "(cancelMove (actionID " + self.BI_actionID[robot_id][0] + ") \"success\")")
+                        print(cancel_gl)
+                        self.data_received.append(Message(False, cancel_gl))
             elif len(self.navigation_controller.command_set[robot_id]) >= 2:  # split path (avoiding path)
                 self.avoid_flag[robot_id] = True  # update avoiding state of robot
                 counterpart_check = {0: 1, 1: 0, 2: 3, 3: 2}
@@ -542,11 +575,10 @@ class NavigationControllerAgent(ArbiAgent):
                             cancel_response_gl = next(gen)
                             if cancel_response_gl is not None:
                                 break
+                            print("[CANCEL_MOVE2]yield waiting " + action_id)
                             yield
                     except StopIteration:
                         pass
-
-                    self.data_received.append(Message(False, cancel_response_gl))
 
                     if cancel_response_gl.get_name() == "fail":
                         print("[Response CancelMove2]\t{RobotID}: FAIL".format(RobotID=robot_id))
@@ -554,6 +586,10 @@ class NavigationControllerAgent(ArbiAgent):
                         result = cancel_response_gl.get_expression(
                             1).as_value().string_value()  # "success" if Cancel request is done
                         print("[Response CancelMove2]\t{RobotID}: {Result}".format(RobotID=robot_id, Result=result))
+                        self.data_received.append(Message(False, cancel_response_gl))
+                        cancel_gl = GLFactory.new_gl_from_gl_string(
+                            "(cancelMove (actionID " + self.BI_actionID[robot_id][0] + ") \"success\")")
+                        self.data_received.append(Message(False, cancel_gl))
 
         yield "finished"
 
@@ -578,8 +614,8 @@ class NavigationControllerAgent(ArbiAgent):
             # self.collide_flag[c_robot_id] = True
             # time.sleep(1)
         elif replan:
-            for i in range(10):
-                yield
+            print("[control_request]REPLAN YIELD")
+            yield from self.async_sleep(5)
 
         # if (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1]) and (self.cur_robot_pose[robot_id][0] == self.actual_goal[robot_id]):
         #     print(c + "current pose equals goal -> thread terminate")
@@ -653,15 +689,18 @@ class NavigationControllerAgent(ArbiAgent):
                             -> [["AMR_LIFT2", [0, 1]]] condition of 1th path which means start after "AMR_LIFT2" passes 1th element(5) in 0th path([4, 5, 6, 7, 8, 9]) '''
         ### Control request to move ###
         for path_idx in range(len(currnet_command_set[robot_id])):  # consider path set
-            if current_command_set_start_condition[robot_id][
-                path_idx]:  # check whether current path has any start condition
+            if current_command_set_start_condition[robot_id][path_idx]:  # check whether current path has any start condition
                 wait_flag = True
                 while wait_flag:
-                    print(c + "wait flag")
+                    print("[MULTI_PATH_CONTROL]yield waiting current_command_set_start_condition")
                     for cond in current_command_set_start_condition[robot_id][path_idx]:
                         if self.navigation_controller.PlanExecutedIdx[cond[0]][0] < cond[1][0] or \
                                 self.navigation_controller.PlanExecutedIdx[cond[0]][1] < cond[1][1]:
                             wait_flag = True
+                            print("WAITING" + robot_id)
+                            print("cond: " + str(cond))
+                            print("current_command_set_start_condition: " + str(current_command_set_start_condition[robot_id][path_idx]))
+                            print("ExecutedIdx: " + str(self.navigation_controller.PlanExecutedIdx))
                         else:
                             wait_flag = False
                             # print("[INFO] Start Condition of {RobotID} is Satisfied".format(RobotID=robot_id))
@@ -678,9 +717,14 @@ class NavigationControllerAgent(ArbiAgent):
             print(c + "while start")
             while not self.navigation_controller.current_command[robot_id]:
                 # print("[INFO] {RobotID} is waiting for Path Update".format(RobotID=robot_id))
+                print("[MULTI_PATH_CONTROL]yield waiting path update from " + str(robot_id))
                 yield
             if self.navigation_controller.current_command[robot_id]:
                 robot_path = currnet_command_set[robot_id][path_idx]  # get current path of path set
+
+                print(c + "[current_command of NC]\t\t{current_command_set}".format(current_command_set=self.navigation_controller.current_command))
+                print(c + "[current_command]\t\t{current_command_set}".format(current_command_set=currnet_command_set))
+                print(c + "[current_command]\t\t{RobotID}\t{Path}".format(RobotID=robot_id, Path=str(robot_path)))
 
             move_gl_str_format = "(move (actionID {actionID}) {path})"
             path_gl = self.path_gl_generator(robot_path, robot_id)  # convert path list to path gl
@@ -699,6 +743,8 @@ class NavigationControllerAgent(ArbiAgent):
             while move_response_gl is None:
                 move_response_gl = next(gen)
                 print("move_response_gl " + str(move_response_gl) + " / waiting " + str(action_id))
+                if move_response_gl is not None:
+                    break
                 yield
 
             print(c + "[response Move2]\t\t{RobotID}\t{response}".format(RobotID=robot_id,
@@ -715,6 +761,7 @@ class NavigationControllerAgent(ArbiAgent):
     def single_path_control(self, c, robot_id):
         self.move_flag[robot_id] = True  # update moving state of robot
         while not self.navigation_controller.current_command[robot_id]:
+            print("[SINGLE_PATH_CONTROL]yield waiting current command set")
             yield
         if self.navigation_controller.current_command[robot_id]:
             robot_path = copy.copy(self.navigation_controller.current_command[robot_id])
@@ -733,6 +780,9 @@ class NavigationControllerAgent(ArbiAgent):
             gen = self.wait_for_data(action_id)
             while True:
                 move_response_gl = next(gen)
+                print("[SINGLE_PATH_CONTROL]yield waiting move_response_gl : " + str(move_response_gl) + " // action_id is " + str(action_id))
+                if move_response_gl is not None:
+                    break
                 yield
         except StopIteration:
             pass
@@ -785,7 +835,7 @@ class NavigationControllerAgent(ArbiAgent):
                         ActionID=self.goal_actionID[robot_id],
                         Result="success")
                     print("[INFO] \"{RobotID}\" to \"{GoalID}\": success".format(RobotID=robot_id,
-                                                                                 GoalID=self.actual_goal[robot_id]))
+                                                                                 GoalID=self.real_goal[robot_id]))
                     self.send(self.task_manager_uri[robot_id], goal_result_gl)  # send result to robotTM
                     # self.actual_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
                     self.real_goal[robot_id] = self.navigation_controller.robotGoal[robot_id]
@@ -876,6 +926,7 @@ class NavigationControllerAgent(ArbiAgent):
             for msg in self.data_received:
                 gl = msg.gl
                 _action_id = gl.get_expression(0).as_generalized_list().get_expression(0).as_value().string_value()
+
                 print("_action_id is " + str(_action_id) + " and action_id is " + str(action_id) + " so result is " + str(
                     str(action_id).replace("\"", "") == str(_action_id)) + " and original gl is " + str(gl))
                 if str(action_id).replace("\"", "") == str(_action_id):
@@ -890,6 +941,9 @@ class NavigationControllerAgent(ArbiAgent):
             for msg in self.data_received:
                 if msg.survive_flag:
                     cleansed_list.append(msg)
+                elif not msg.dead_flag:
+                    cleansed_list.append(msg)
+                    msg.dead_flag = True
             self.data_received = cleansed_list
             yield
 
