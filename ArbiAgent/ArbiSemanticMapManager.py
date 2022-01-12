@@ -17,7 +17,7 @@ from MapManagement.MapCloudlet import MapCloudlet
 from DataTypes.RobotInfo import RobotInfo
 from DataTypes.CallInfo import CallInfo
 
-broker_url = "tcp://172.16.165.106:61313"
+broker_url = "tcp://192.168.0.2:61313"
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
 
 

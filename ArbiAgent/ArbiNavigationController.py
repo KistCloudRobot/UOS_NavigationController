@@ -2,10 +2,14 @@ import time
 import pathlib
 import copy
 import uuid
+import sys
 from threading import Thread
 from typing import List
 
+sys.path.append("/home/kist/demo/src/Python_mcArbiFramework/")
+sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 from UOS_NavigationController.DataTypes.Message import Message
+#from UOS_NavigationController.DataTypes.Message import Message
 
 from arbi_agent.agent.arbi_agent import ArbiAgent
 from arbi_agent.ltm.data_source import DataSource
@@ -16,7 +20,7 @@ from UOS_NavigationController.MapManagement.MapMOS import MapMOS
 from UOS_NavigationController.NavigationControl.NavigationControl import NavigationControl
 
 agent_mapf_uri = "agent://www.arbi.com/Local/MultiAgentPathFinder"
-broker_url = "tcp://172.16.165.106:61313"
+broker_url = "tcp://192.168.0.2:61313"
 
 
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
