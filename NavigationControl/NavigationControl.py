@@ -324,7 +324,7 @@ class NavigationControl:
                         start_idx = self.PlanExecutedIdx[rid][0] + 1
                         print('[In the NC] rid : '+str(rid))
                         print('[In the NC] start_idx : '+str(start_idx))
-
+                        # NC PROBLEM HERE
                         print('[In the NC] robotTM_scond : '+str(robotTM_scond))
                         if robotTM_scond[rid][start_idx] == []:
                             # robotTM[rid] = copy.deepcopy(robotTM_set[rid][start_idx])

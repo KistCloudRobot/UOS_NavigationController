@@ -132,6 +132,7 @@ class NavigationControllerAgent(ArbiAgent):
         while True:
             clean_generator_queue = []
             for task in self.generator_queue:
+                print("GENERATOR_QUEUE // " + str(task.generator) + " by " + str(task.robot_id))
                 try:
                     generator = task.generator
                     robot_id = task.robot_id
@@ -187,7 +188,7 @@ class NavigationControllerAgent(ArbiAgent):
         if gl_name == "MultiRobotPose":  # "MultiRobotPose" update from SMM
             ''' MultiRobotPose gl format: (MultiRobotPose (RobotPose $robot_id (vertex $vertex_id $vertex_id)), ...) '''
 
-            self.update_multi_robot_pose(temp_gl)
+            self.generator_queue.append(RobotTask(self.update_multi_robot_pose(temp_gl), "notify"))
 
         elif gl_name == "Collidable":  # "Collidable" update from SMM
             ''' Collidable gl format: (Collidable $num (pair $robot_id $robot_id $time), …) 
@@ -212,7 +213,18 @@ class NavigationControllerAgent(ArbiAgent):
                 for robot_id in robot_ids:
                     self.collide_flag[robot_id] = True
                     print("[INFO] {RobotID} cancel move by collidable".format(RobotID=robot_id))
+                    action_id = uuid.uuid4()
                     self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
+                    try:
+                        gen = self.wait_for_data(action_id, robot_id)
+                        while True:
+                            cancel_move_response = next(gen)
+                            if cancel_move_response is not None:
+                                break
+                            print("[UPDATE_COLLIDABLE]yield waiting " + action_id)
+                            yield
+                    except StopIteration:
+                        pass
 
                 self.navigation_controller.update_start_goal_collision(
                     robot_ids)  # update collidable robotIDs in NC
@@ -262,7 +274,19 @@ class NavigationControllerAgent(ArbiAgent):
                 # if (not self.avoid_flag[robot_id]) and (not self.move_flag[robot_id]):
                 if not self.avoid_flag[robot_id]:
                     print("[INFO] {RobotID} cancel move".format(RobotID=robot_id))
+                    action_id = uuid.uuid4()
                     self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
+
+                    try:
+                        gen = self.wait_for_data(action_id, robot_id)
+                        while True:
+                            cancel_move_response = next(gen)
+                            if cancel_move_response is not None:
+                                break
+                            print("[QUEUE_REQUESTED_ACTION]yield waiting " + action_id)
+                            yield
+                    except StopIteration:
+                        pass
                     print("[INFO] {RobotID} Control request by <COLLIDABLE> Notification [{num}]".format(
                         RobotID=robot_id, num=self.count))
                     self.preserved_queue.append(RobotTask(self.control_request(robot_id, True, False, self.count)))
@@ -392,7 +416,7 @@ class NavigationControllerAgent(ArbiAgent):
         if robot_id_replan:  # check whether robot_id_replan is empty
             for robot_id in robot_id_replan:
                 print("[{action_id}][INFO3] {RobotID} cancel move".format(action_id=action_id, RobotID=robot_id))
-                self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
+                self.generator_queue.append(RobotTask(self.cancel_move(robot_id, action_id), "cancel_move"))
                 print("[{action_id}][INFO3] {RobotID} cancel move finish".format(action_id=action_id,
                                                                                  RobotID=robot_id))
                 try:
@@ -426,9 +450,9 @@ class NavigationControllerAgent(ArbiAgent):
                     self.move_flag[robot_id] = True
                 self.count = self.count + 1
 
-    def async_sleep(self, seconds):
+    def async_sleep(self, seconds, action_id=None):
         end_time = time.time() + seconds
-        print("current time is " + str(time.time()) + " and end time is " + str(end_time))
+        print("current time is " + str(time.time()) + " and end time is " + str(end_time) + " / " + str(action_id))
         while True:
             if time.time() > end_time:
                 print("end waiting")
@@ -584,6 +608,8 @@ class NavigationControllerAgent(ArbiAgent):
                 temp_Cancel_gl = "(cancelMove (actionID {actionID} \"{robotID}\"))"
                 if action_id is None:
                     action_id = "\"" + str(uuid.uuid4()) + "\""
+                else:
+                    action_id = "\"" + action_id + "\""
                 Cancel_gl = temp_Cancel_gl.format(actionID=action_id, robotID=robot_id)  # Cancel actionID
                 self.move_flag[robot_id] = False  # update moving state of robot
                 print("[Request CancelMove1]\t{RobotID}".format(RobotID=robot_id))
@@ -633,6 +659,8 @@ class NavigationControllerAgent(ArbiAgent):
                 temp_Cancel_gl = "(cancelMove (actionID {actionID} \"{robotID}\"))"
                 if action_id is None:
                     action_id = "\"" + str(uuid.uuid4()) + "\""
+                else:
+                    action_id = "\"" + action_id + "\""
                 Cancel_gl = temp_Cancel_gl.format(actionID=action_id, robotID=robot_id)  # Cancel actionID
                 self.move_flag[robot_id] = False  # update moving state of robot
                 print("[Request CancelMove2]\t{RobotID}".format(RobotID=robot_id))
@@ -661,7 +689,9 @@ class NavigationControllerAgent(ArbiAgent):
                     #     "(cancelMove (actionID " + self.BI_actionID[robot_id][0] + ") \"success\")")
                     # self.data_received.append(Message(False, cancel_gl))
         else:
-            self.data_received.append(Message(False, GLFactory.new_gl_from_gl_string("(cancelMove (actionID {actionID} \"{robotID}\"))".format(actionID=action_id, robotID=robot_id))))
+            gl_string = "(cancelMove (actionID \"{actionID}\" \"{robotID}\") \"success\")".format(actionID=action_id, robotID=robot_id)
+            print("CANCELMOVE GL_STRING IS = " + gl_string)
+            self.data_received.append(Message(False, GLFactory.new_gl_from_gl_string(gl_string)))
 
         yield "finished"
 
@@ -687,7 +717,7 @@ class NavigationControllerAgent(ArbiAgent):
             # time.sleep(1)
         elif replan:
             print("[control_request]REPLAN YIELD")
-            yield from self.async_sleep(5)
+            yield from self.async_sleep(5, robot_id)
 
         # if (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1]) and (self.cur_robot_pose[robot_id][0] == self.actual_goal[robot_id]):
         #     print(c + "current pose equals goal -> thread terminate")
@@ -779,7 +809,8 @@ class NavigationControllerAgent(ArbiAgent):
                                     wait_flag = True
                                     print("WAITING" + robot_id)
                                     print("cond: " + str(cond))
-                                    print("current_command_set_start_condition: " + str(current_command_set_start_condition[robot_id][path_idx]))
+                                    print("current_command_set_start_condition: " + str(current_command_set_start_condition[robot_id]))
+                                    print("current_command_set_start_condition[robot_id]: " + str(current_command_set_start_condition[robot_id][path_idx]))
                                     print("ExecutedIdx: " + str(self.navigation_controller.PlanExecutedIdx))
                                 else:
                                     wait_flag = False
@@ -913,6 +944,9 @@ class NavigationControllerAgent(ArbiAgent):
         # if path[0] != self.cur_robot_pose[robot_id][0]:
         #     path.insert(0, self.cur_robot_pose[robot_id][0])
         path_gl = "(path"
+        if len(path) == 1:
+            path_gl += " "
+            path_gl += str(self.cur_robot_pose[robot_id][0])
         for path_i in path:
             path_gl += " "
             path_gl += str(path_i)
