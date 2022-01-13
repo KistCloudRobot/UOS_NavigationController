@@ -4,6 +4,10 @@ import copy
 import uuid
 from threading import Thread
 from typing import List
+import sys
+
+sys.path.append("/home/kist/demo/src/Python_mcArbiFramework/")
+sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 
 from UOS_NavigationController.DataTypes.Message import Message
 from UOS_NavigationController.DataTypes.RobotTask import RobotTask
@@ -17,7 +21,7 @@ from UOS_NavigationController.MapManagement.MapMOS import MapMOS
 from UOS_NavigationController.NavigationControl.NavigationControl import NavigationControl
 
 agent_mapf_uri = "agent://www.arbi.com/Local/MultiAgentPathFinder"
-broker_url = "tcp://172.16.165.106:61313"
+broker_url = "tcp://192.168.0.2:61313"
 
 
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
@@ -894,10 +898,10 @@ class NavigationControllerAgent(ArbiAgent):
             print("GGGGGGGoal check from " + str(robot_id) + " / actionID : " + str(
                 action_id) + " / is_goal_terminated : " + str(is_goal_terminated))
             if is_goal_terminated == -1:
-                if self.navigation_controller.robotPose[robot_id][0] == self.navigation_controller.robotPose[robot_id][1] == self.navigation_controller.robotGoal[robot_id]:
+                if self.navigation_controller.robotPose[robot_id][0] == self.navigation_controller.robotGoal[robot_id]:
                     is_goal_terminated = 0
                     # check twice
-                    print("goal terminated turned into " + is_goal_terminated + " by 2nd check method")
+                    print("goal terminated turned into " + str(is_goal_terminated) + " by 2nd check method")
 
             if is_goal_terminated == 0:  # check wheather robot is moving and just terminates its goal
                 self.move_flag[robot_id] = False  # update state of robot to not moving

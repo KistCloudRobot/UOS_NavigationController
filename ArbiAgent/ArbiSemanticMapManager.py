@@ -17,7 +17,7 @@ from MapManagement.MapCloudlet import MapCloudlet
 from DataTypes.RobotInfo import RobotInfo
 from DataTypes.CallInfo import CallInfo
 
-broker_url = "tcp://172.16.165.106:61313"
+broker_url = "tcp://192.168.0.2:61313"
 # broker_url = 'tcp://' + os.environ["JMS_BROKER"]
 
 
@@ -55,10 +55,10 @@ class MapManagerDataSource(DataSource):
         self.AMR_TOW_init = {"AMR_TOW1": 203, "AMR_TOW2": 204}  # Initial vertex of TOW
 
         self.Rack_LIFT_init = {'RACK_LIFT0': 14, 'RACK_LIFT1': 19, 'RACK_LIFT2': 22,
-                               'RACK_LIFT3': 13}
+                               'RACK_LIFT3': 18}
         self.Rack_TOW_init = {'RACK_TOW0': 20, 'RACK_TOW1': 23}  # Initial vertex of TOW Rack
 
-        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19, "CARGO3": 14}  # Initial vertex of Cargo
+        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19, "CARGO3": 14, "CARGO1": 22}  # Initial vertex of Cargo
 
         self.Door_init = {'Door0': 0} # Initial status of Door
         self.MC = MapCloudlet(self.map_file, self.AMR_LIFT_init, self.AMR_TOW_init, self.Rack_TOW_init,
@@ -353,7 +353,7 @@ class MapManagerAgent(ArbiAgent):
 
         while True:
             time.sleep(0.1)
-            temp_Collidable_info = self.ltm.MC.detect_collision(1000)
+            temp_Collidable_info = self.ltm.MC.detect_collision(2000)
             temp_Collidable_num = len(temp_Collidable_info)
             if temp_Collidable_num:
                 temp_notify = "(Collidable {num}"
