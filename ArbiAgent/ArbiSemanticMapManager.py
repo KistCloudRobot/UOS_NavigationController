@@ -54,11 +54,11 @@ class MapManagerDataSource(DataSource):
         self.AMR_LIFT_init = {"AMR_LIFT1": 201, "AMR_LIFT2": 202} # Initial vertex of LIFT
         self.AMR_TOW_init = {"AMR_TOW1": 203, "AMR_TOW2": 204} # Initial vertex of TOW
 
-        self.Rack_LIFT_init = {'RACK_LIFT0': 18, 'RACK_LIFT1': 19, 'RACK_LIFT2': 5,
-                               'RACK_LIFT3': 4, 'RACK_LIFT4': 13, 'RACK_LIFT5': 12}
+        self.Rack_LIFT_init = {'RACK_LIFT0': 14, 'RACK_LIFT1': 19, 'RACK_LIFT2': 5,
+                               'RACK_LIFT3': 4}
         self.Rack_TOW_init = {'RACK_TOW0': 20, 'RACK_TOW1': 23} # Initial vertex of TOW Rack
 
-        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19,"CARGO3": 4,"CARGO1": 5} # Initial vertex of Cargo
+        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19,"CARGO3": 4} # Initial vertex of Cargo
 
         self.Door_init = {'Door0': 0} # Initial status of Door
         self.MC = MapCloudlet(self.map_file, self.AMR_LIFT_init, self.AMR_TOW_init, self.Rack_TOW_init,

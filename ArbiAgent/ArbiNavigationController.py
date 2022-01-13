@@ -6,6 +6,7 @@ from threading import Thread
 from typing import List
 
 from UOS_NavigationController.DataTypes.Message import Message
+from UOS_NavigationController.DataTypes.RobotTask import RobotTask
 
 from arbi_agent.agent.arbi_agent import ArbiAgent
 from arbi_agent.ltm.data_source import DataSource
@@ -111,6 +112,8 @@ class NavigationControllerAgent(ArbiAgent):
 
         self.count = 0
         self.generator_queue = []
+        self.preserved_queue = []
+        self.canceled_robot_id = []
         self.data_received: List[Message] = []
 
     def on_start(self):  # executed when the agent initializes
@@ -124,17 +127,38 @@ class NavigationControllerAgent(ArbiAgent):
         cleanse_list_gen = self.cleanse_list()
         while True:
             clean_generator_queue = []
-            for generator in self.generator_queue:
+            for task in self.generator_queue:
                 try:
-                    # print(generator)
-                    next(generator)
-                    clean_generator_queue.append(generator)
+                    generator = task.generator
+                    robot_id = task.robot_id
+                    if robot_id in self.canceled_robot_id:
+                        pass
+                    else:
+                        # print(generator)
+                        next(generator)
+                        clean_generator_queue.append(task)
                 except StopIteration:
                     print("jobs done. generator removed?")
                     pass
+
             self.generator_queue = clean_generator_queue
+
+            clean_generator_queue = []
+
+            for task in self.generator_queue:
+                if task.robot_id in self.canceled_robot_id:
+                    pass
+                else:
+                    clean_generator_queue.append(task)
+
+            clean_generator_queue += self.preserved_queue
+            self.generator_queue = clean_generator_queue
+
+            self.preserved_queue = []
+            self.canceled_robot_id = []
+
             next(cleanse_list_gen)
-            time.sleep(0.5)
+            time.sleep(0.1)
 
     def request(self, receiver: str, request: str) -> str:
         print("we sent request : " + request)
@@ -181,7 +205,7 @@ class NavigationControllerAgent(ArbiAgent):
                 for robot_id in robot_ids:
                     self.collide_flag[robot_id] = True
                     print("[INFO] {RobotID} cancel move by collidable".format(RobotID=robot_id))
-                    self.generator_queue.append(self.cancel_move(robot_id))
+                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
 
                 self.navigation_controller.update_start_goal_collision(
                     robot_ids)  # update collidable robotIDs in NC
@@ -205,7 +229,7 @@ class NavigationControllerAgent(ArbiAgent):
                         print("[INFO] {RobotID} Control request by <COLLIDABLE> Notification [{num}]".format(
                             RobotID=robot_id, num=self.count))
                         # Thread(target=self.Control_request, args=(robot_id, True, False, self.count), daemon=True).start()  # control request of robotID
-                        self.generator_queue.append(self.control_request(robot_id, True, False, self.count))
+                        self.generator_queue.append(RobotTask(self.control_request(robot_id, True, False, self.count), robot_id))
                     else:
                         self.move_flag[robot_id] = True
 
@@ -231,10 +255,10 @@ class NavigationControllerAgent(ArbiAgent):
                 # if (not self.avoid_flag[robot_id]) and (not self.move_flag[robot_id]):
                 if not self.avoid_flag[robot_id]:
                     print("[INFO] {RobotID} cancel move".format(RobotID=robot_id))
-                    self.generator_queue.append(self.cancel_move(robot_id))
+                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
                     print("[INFO] {RobotID} Control request by <COLLIDABLE> Notification [{num}]".format(
                         RobotID=robot_id, num=self.count))
-                    self.generator_queue.append(self.control_request(robot_id, True, False, self.count))
+                    self.preserved_queue.append(RobotTask(self.control_request(robot_id, True, False, self.count)))
 
                     self.count = self.count + 1
 
@@ -280,7 +304,7 @@ class NavigationControllerAgent(ArbiAgent):
                         self.semantic_map_manager_notify(robot_id)  # # notify SMM of same control information
                         print(
                             "[{action_id}][INFO2] {RobotID} cancel move".format(action_id=action_id, RobotID=robot_id))
-                        self.generator_queue.append(self.cancel_move(robot_id))
+                        self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
                         print("[{action_id}][INFO2] {RobotID} cancel move finish".format(action_id=action_id,
                                                                                          RobotID=robot_id))
                         print("[{action_id}][INFO2] {RobotID}".format(action_id=action_id, RobotID=robot_id))
@@ -288,13 +312,13 @@ class NavigationControllerAgent(ArbiAgent):
                             "[{action_id}][INFO2] {RobotID} Control request by <Move> Request [{num}], to {goal}".format(
                                 action_id=action_id, RobotID=robot_id, num=self.count, goal=real_goal))
                         # Thread(target=self.Control_request, args=(robot_id, False, True, self.count,),daemon=True).start()  # control request of robotID
-                        self.generator_queue.append(self.control_request(robot_id, False, True, self.count))
+                        self.generator_queue.append(RobotTask(self.control_request(robot_id, False, True, self.count), robot_id))
                         self.count = self.count + 1
 
             if robot_id_replan:  # check whether robot_id_replan is empty
                 for robot_id in robot_id_replan:
                     print("[{action_id}][INFO3] {RobotID} cancel move".format(action_id=action_id, RobotID=robot_id))
-                    self.generator_queue.append(self.cancel_move(robot_id))
+                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
                     print("[{action_id}][INFO3] {RobotID} cancel move finish".format(action_id=action_id,
                                                                                      RobotID=robot_id))
 
@@ -312,7 +336,7 @@ class NavigationControllerAgent(ArbiAgent):
                         print("[{action_id}][INFO3] {RobotID} Control request by <Move> Request [{num}]".format(
                             action_id=action_id, RobotID=robot_id, num=self.count))
                         # Thread(target=self.Control_request, args=(robot_id, False, True, self.count,), daemon=True).start()  # control request of robotID
-                        self.generator_queue.append(self.control_request(robot_id, False, True, self.count))
+                        self.generator_queue.append(RobotTask(self.control_request(robot_id, False, True, self.count), robot_id))
                         print("generator queue appended")
                     else:
                         self.move_flag[robot_id] = True
@@ -339,7 +363,7 @@ class NavigationControllerAgent(ArbiAgent):
             direction = temp_gl.get_expression(3).as_value().string_value()
             print("[GuideMove] direction " + str(direction))
             print("GGGG")
-            self.generator_queue.append(self.guide_move(robot_id, action_id, vertex, direction))
+            self.generator_queue.append(RobotTask(self.guide_move(robot_id, action_id, vertex, direction), robot_id))
             print("GGGG")
             return "(ok)"
             
@@ -351,7 +375,7 @@ class NavigationControllerAgent(ArbiAgent):
             robot_id = temp_gl.get_expression(1).as_value().string_value()
             vertex = temp_gl.get_expression(2).as_value().int_value()
             print("PPPP")
-            self.generator_queue.append(self.precise_move(robot_id, action_id, vertex))
+            self.generator_queue.append(RobotTask(self.precise_move(robot_id, action_id, vertex), robot_id))
             print("PPPP")
             return "(ok)"
             
@@ -363,7 +387,7 @@ class NavigationControllerAgent(ArbiAgent):
             robot_id = temp_gl.get_expression(1).as_value().string_value()
             vertex = temp_gl.get_expression(2).as_value().int_value()
             print("SSSS")
-            self.generator_queue.append(self.straight_back_move(robot_id, action_id, vertex))
+            self.generator_queue.append(RobotTask(self.straight_back_move(robot_id, action_id, vertex), robot_id))
             print("SSSS")
             return "(ok)"
             
@@ -752,25 +776,28 @@ class NavigationControllerAgent(ArbiAgent):
             move_response = self.request(self.behavior_interface_uri[robot_id],
                                          move_gl)  # request move control to robotBI, get response of request                                    print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response)))
 
-            gen = self.wait_for_data(action_id, robot_id)
-            print("[RM2] wait for data " + str(action_id))
+            if move_response != "(ok)":
+                pass
+            else:
+                gen = self.wait_for_data(action_id, robot_id)
+                print("[RM2] wait for data " + str(action_id))
 
-            move_response_gl = None
-            while move_response_gl is None:
-                move_response_gl = next(gen)
-                print("move_response_gl " + str(move_response_gl) + " / waiting " + str(action_id))
-                if move_response_gl is not None:
-                    break
-                yield
-            print(c + "[response Move2]\t\t{RobotID}\t{response}".format(RobotID=robot_id,
-                                                                         response=str(
-                                                                             move_response)))
-            print("[Response Move2] " + move_response_gl.get_name() + "/" + str(move_response_gl.get_name() != "fail"))
-            if move_response != "fail" and str(move_response_gl.get_name()).lower() != "cancelmove":
-                result = move_response_gl.get_expression(
-                    1).as_value().string_value()  # "success" if request is done, "(fail)"" if request can't be handled
-                print(c + "[Response Move2]\t\t{RobotID}\t{Path}: {Result}".format(RobotID=robot_id, Path=str(path_gl),
-                                                                                   Result=str(result)))
+                move_response_gl = None
+                while move_response_gl is None:
+                    move_response_gl = next(gen)
+                    print("move_response_gl " + str(move_response_gl) + " / waiting " + str(action_id))
+                    if move_response_gl is not None:
+                        break
+                    yield
+                print(c + "[response Move2]\t\t{RobotID}\t{response}".format(RobotID=robot_id,
+                                                                             response=str(
+                                                                                 move_response)))
+                print("[Response Move2] " + move_response_gl.get_name() + "/" + str(move_response_gl.get_name() != "fail"))
+                if move_response != "fail" and str(move_response_gl.get_name()).lower() != "cancelmove":
+                    result = move_response_gl.get_expression(
+                        1).as_value().string_value()  # "success" if request is done, "(fail)"" if request can't be handled
+                    print(c + "[Response Move2]\t\t{RobotID}\t{Path}: {Result}".format(RobotID=robot_id, Path=str(path_gl),
+                                                                                       Result=str(result)))
         self.avoid_flag[robot_id] = False  # update avoiding state of robot
         self.avoid_flag[c_robot_id] = False  # update avoiding state of robot
         yield from self.async_sleep(0.5)
@@ -796,28 +823,35 @@ class NavigationControllerAgent(ArbiAgent):
         self.move_flag[robot_id] = True
         move_response = self.request(self.behavior_interface_uri[robot_id],
                                      move_gl)  # request move control to robotBI, get response of request
-        try:
-            gen = self.wait_for_data(action_id, robot_id)
-            while True:
-                move_response_gl = next(gen)
-                print("[SINGLE_PATH_CONTROL]yield waiting move_response_gl : " + str(move_response_gl) + " // action_id is " + str(action_id))
-                if move_response_gl is not None:
-                    break
-                yield
-        except StopIteration:
+        if move_response != "(ok)":
+            print("move failed. jobs done!")
             pass
+        else:
+            try:
+                gen = self.wait_for_data(action_id, robot_id)
+                while True:
+                    move_response_gl = next(gen)
+                    print("[SINGLE_PATH_CONTROL]yield waiting move_response_gl : " + str(move_response_gl) + " // action_id is " + str(action_id))
+                    if move_response_gl is not None:
+                        break
+                    yield
+            except StopIteration:
+                pass
 
-        print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response_gl)))
-        print("[Response Move1] " + str(move_response_gl.get_name().lower()))
-        if move_response != "fail" and str(move_response_gl.get_name()).lower() != "cancelmove":
-            result = move_response_gl.get_expression(
-                1).as_value().string_value()  # "success" if request is done, "(fail)"" if request can't be handled
-            print(c + "[response Move1]\t\t{RobotID}\t{Path}: {Result}".format(RobotID=robot_id,
-                                                                               Path=str(path_gl),
-                                                                               Result=str(result)))
-            yield from self.async_sleep(0.5)
-            yield from self.goal_check(robot_id, action_id)
-        print("jobs done! by SPC")
+            print(c + "[response Move1]\t\t{RobotID}\t{response}".format(RobotID=robot_id, response=str(move_response_gl)))
+            print("[Response Move1] " + str(move_response_gl.get_name().lower()))
+            if move_response != "fail" and str(move_response_gl.get_name()).lower() != "cancelmove":
+                result = move_response_gl.get_expression(
+                    1).as_value().string_value()  # "success" if request is done, "(fail)"" if request can't be handled
+                print(c + "[response Move1]\t\t{RobotID}\t{Path}: {Result}".format(RobotID=robot_id,
+                                                                                   Path=str(path_gl),
+                                                                                   Result=str(result)))
+                yield from self.async_sleep(0.5)
+                yield from self.goal_check(robot_id, action_id)
+            elif move_response != "fail" and str(move_response_gl.get_name()).lower() == "cancelmove":
+                yield from self.async_sleep(1)
+                yield from self.goal_check(robot_id, action_id)
+            print("jobs done! by SPC")
 
     def semantic_map_manager_notify(self, robot_id):  # notify SMM of control information
         ''' RobotPathPlan gl format: (RobotPathPlan $robot_id $goal (path $v_id1 $v_id2 ….)) '''
