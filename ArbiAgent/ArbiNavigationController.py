@@ -143,22 +143,25 @@ class NavigationControllerAgent(ArbiAgent):
 
             self.generator_queue = clean_generator_queue
 
-            clean_generator_queue = []
-
-            for task in self.generator_queue:
-                if task.robot_id in self.canceled_robot_id:
-                    pass
-                else:
-                    clean_generator_queue.append(task)
-
-            clean_generator_queue += self.preserved_queue
-            self.generator_queue = clean_generator_queue
+            self.clear_generator_queue()
 
             self.preserved_queue = []
             self.canceled_robot_id = []
 
+            # self.check_current_location()
+
             next(cleanse_list_gen)
             time.sleep(0.1)
+
+    def clear_generator_queue(self):
+        clean_generator_queue = []
+        for task in self.generator_queue:
+            if task.robot_id in self.canceled_robot_id:
+                print("jobs canceled by canceledmove " + str(task.robot_id))
+            else:
+                clean_generator_queue.append(task)
+        clean_generator_queue += self.preserved_queue
+        self.generator_queue = clean_generator_queue
 
     def request(self, receiver: str, request: str) -> str:
         print("we sent request : " + request)
@@ -205,7 +208,7 @@ class NavigationControllerAgent(ArbiAgent):
                 for robot_id in robot_ids:
                     self.collide_flag[robot_id] = True
                     print("[INFO] {RobotID} cancel move by collidable".format(RobotID=robot_id))
-                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
+                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
 
                 self.navigation_controller.update_start_goal_collision(
                     robot_ids)  # update collidable robotIDs in NC
@@ -255,7 +258,7 @@ class NavigationControllerAgent(ArbiAgent):
                 # if (not self.avoid_flag[robot_id]) and (not self.move_flag[robot_id]):
                 if not self.avoid_flag[robot_id]:
                     print("[INFO] {RobotID} cancel move".format(RobotID=robot_id))
-                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
+                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
                     print("[INFO] {RobotID} Control request by <COLLIDABLE> Notification [{num}]".format(
                         RobotID=robot_id, num=self.count))
                     self.preserved_queue.append(RobotTask(self.control_request(robot_id, True, False, self.count)))
@@ -304,7 +307,7 @@ class NavigationControllerAgent(ArbiAgent):
                         self.semantic_map_manager_notify(robot_id)  # # notify SMM of same control information
                         print(
                             "[{action_id}][INFO2] {RobotID} cancel move".format(action_id=action_id, RobotID=robot_id))
-                        self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
+                        self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
                         print("[{action_id}][INFO2] {RobotID} cancel move finish".format(action_id=action_id,
                                                                                          RobotID=robot_id))
                         print("[{action_id}][INFO2] {RobotID}".format(action_id=action_id, RobotID=robot_id))
@@ -318,7 +321,7 @@ class NavigationControllerAgent(ArbiAgent):
             if robot_id_replan:  # check whether robot_id_replan is empty
                 for robot_id in robot_id_replan:
                     print("[{action_id}][INFO3] {RobotID} cancel move".format(action_id=action_id, RobotID=robot_id))
-                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), robot_id))
+                    self.generator_queue.append(RobotTask(self.cancel_move(robot_id), "cancel_move"))
                     print("[{action_id}][INFO3] {RobotID} cancel move finish".format(action_id=action_id,
                                                                                      RobotID=robot_id))
 
@@ -523,6 +526,7 @@ class NavigationControllerAgent(ArbiAgent):
                 yield from self.async_sleep(1)
         
     def cancel_move(self, robot_id):
+        self.canceled_robot_id.append(robot_id)
         # if len(self.navigation_controller.current_command[robot_id]) == 1:  # check whether robot is stationary
         #     # stationary_check = (self.cur_robot_pose[robot_id][0] == self.cur_robot_pose[robot_id][1] ==
         #     #                     self.navigation_controller.current_command[robot_id][
@@ -725,26 +729,29 @@ class NavigationControllerAgent(ArbiAgent):
                             -> [["AMR_LIFT2", [0, 1]]] condition of 1th path which means start after "AMR_LIFT2" passes 1th element(5) in 0th path([4, 5, 6, 7, 8, 9]) '''
         ### Control request to move ###
         for path_idx in range(len(currnet_command_set[robot_id])):  # consider path set
-            if current_command_set_start_condition[robot_id][path_idx]:  # check whether current path has any start condition
-                wait_flag = True
-                while wait_flag:
-                    print("[MULTI_PATH_CONTROL]yield waiting current_command_set_start_condition")
-                    if self.real_goal[c_robot_id] == -1:
-                        break
-                    else:
-                        for cond in current_command_set_start_condition[robot_id][path_idx]:
-                            if self.navigation_controller.PlanExecutedIdx[cond[0]][0] < cond[1][0] or \
-                                    self.navigation_controller.PlanExecutedIdx[cond[0]][1] < cond[1][1]:
-                                wait_flag = True
-                                print("WAITING" + robot_id)
-                                print("cond: " + str(cond))
-                                print("current_command_set_start_condition: " + str(current_command_set_start_condition[robot_id][path_idx]))
-                                print("ExecutedIdx: " + str(self.navigation_controller.PlanExecutedIdx))
-                            else:
-                                wait_flag = False
-                                # print("[INFO] Start Condition of {RobotID} is Satisfied".format(RobotID=robot_id))
-                                break
-                    yield
+            print("start condition list " + str(currnet_command_set[robot_id]) + " / current idx" + str(path_idx))
+            print("current_command_set_start_condition : " + str(current_command_set_start_condition))
+            if current_command_set_start_condition[robot_id]:
+                if current_command_set_start_condition[robot_id][path_idx]:  # check whether current path has any start condition
+                    wait_flag = True
+                    while wait_flag:
+                        print("[MULTI_PATH_CONTROL]yield waiting current_command_set_start_condition")
+                        if self.real_goal[c_robot_id] == -1:
+                            break
+                        else:
+                            for cond in current_command_set_start_condition[robot_id][path_idx]:
+                                if self.navigation_controller.PlanExecutedIdx[cond[0]][0] < cond[1][0] or \
+                                        self.navigation_controller.PlanExecutedIdx[cond[0]][1] < cond[1][1]:
+                                    wait_flag = True
+                                    print("WAITING" + robot_id)
+                                    print("cond: " + str(cond))
+                                    print("current_command_set_start_condition: " + str(current_command_set_start_condition[robot_id][path_idx]))
+                                    print("ExecutedIdx: " + str(self.navigation_controller.PlanExecutedIdx))
+                                else:
+                                    wait_flag = False
+                                    # print("[INFO] Start Condition of {RobotID} is Satisfied".format(RobotID=robot_id))
+                                    break
+                        yield
 
             ''' Move actionID:
                     "AMR_LIFT1": "\"1\""
@@ -759,10 +766,10 @@ class NavigationControllerAgent(ArbiAgent):
                 print("[MULTI_PATH_CONTROL]yield waiting path update from " + str(robot_id))
                 yield
             if self.navigation_controller.current_command[robot_id]:
-                robot_path = currnet_command_set[robot_id][path_idx]  # get current path of path set
-
-                print(c + "[current_command of NC]\t\t{current_command_set}".format(current_command_set=self.navigation_controller.current_command))
+                print(c + "[current_command of NC]\t\t{current_command_set}".format(
+                    current_command_set=self.navigation_controller.current_command))
                 print(c + "[current_command]\t\t{current_command_set}".format(current_command_set=currnet_command_set))
+                robot_path = currnet_command_set[robot_id][path_idx]  # get current path of path set
                 print(c + "[current_command]\t\t{RobotID}\t{Path}".format(RobotID=robot_id, Path=str(robot_path)))
 
             move_gl_str_format = "(move (actionID {actionID}) {path})"
@@ -879,11 +886,19 @@ class NavigationControllerAgent(ArbiAgent):
         print('1111111111111', path, path_gl)
         return path_gl
 
-    def goal_check(self, robot_id, action_id):  # check whether robot terminates its goal and if it terminates, send result of goal to robotTM
+    def goal_check(self, robot_id,
+                   action_id):  # check whether robot terminates its goal and if it terminates, send result of goal to robotTM
         while True:
             is_goal_terminated = self.navigation_controller.Flag_terminate[
                 robot_id]  # get terminateFlag from NC (-1: Not terminated, 0: Success Terminate 1: Fail Terminate)
-            print("GGGGGGGoal check from " + str(robot_id) + " / actionID : " + str(action_id) + " / is_goal_terminated : " + str(is_goal_terminated))
+            print("GGGGGGGoal check from " + str(robot_id) + " / actionID : " + str(
+                action_id) + " / is_goal_terminated : " + str(is_goal_terminated))
+            if is_goal_terminated == -1:
+                if self.navigation_controller.robotPose[robot_id][0] == self.navigation_controller.robotPose[robot_id][1] == self.navigation_controller.robotGoal[robot_id]:
+                    is_goal_terminated = 0
+                    # check twice
+                    print("goal terminated turned into " + is_goal_terminated + " by 2nd check method")
+
             if is_goal_terminated == 0:  # check wheather robot is moving and just terminates its goal
                 self.move_flag[robot_id] = False  # update state of robot to not moving
                 ''' MoveResult gl format: (MoveResult (actionID $actionID) $robotID $result) '''

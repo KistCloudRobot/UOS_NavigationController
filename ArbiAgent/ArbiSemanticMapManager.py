@@ -51,14 +51,14 @@ class MapManagerDataSource(DataSource):
             elif "TOW" in identifier:
                 self.AMR_TOW_IDs.append(identifier)
 
-        self.AMR_LIFT_init = {"AMR_LIFT1": 201, "AMR_LIFT2": 202} # Initial vertex of LIFT
-        self.AMR_TOW_init = {"AMR_TOW1": 203, "AMR_TOW2": 204} # Initial vertex of TOW
+        self.AMR_LIFT_init = {"AMR_LIFT1": 201, "AMR_LIFT2": 202}  # Initial vertex of LIFT
+        self.AMR_TOW_init = {"AMR_TOW1": 203, "AMR_TOW2": 204}  # Initial vertex of TOW
 
-        self.Rack_LIFT_init = {'RACK_LIFT0': 14, 'RACK_LIFT1': 19, 'RACK_LIFT2': 5,
-                               'RACK_LIFT3': 4}
-        self.Rack_TOW_init = {'RACK_TOW0': 20, 'RACK_TOW1': 23} # Initial vertex of TOW Rack
+        self.Rack_LIFT_init = {'RACK_LIFT0': 14, 'RACK_LIFT1': 19, 'RACK_LIFT2': 22,
+                               'RACK_LIFT3': 13}
+        self.Rack_TOW_init = {'RACK_TOW0': 20, 'RACK_TOW1': 23}  # Initial vertex of TOW Rack
 
-        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19,"CARGO3": 4} # Initial vertex of Cargo
+        self.Cargo_init = {"CARGO0": 18, "CARGO2": 19, "CARGO3": 14}  # Initial vertex of Cargo
 
         self.Door_init = {'Door0': 0} # Initial status of Door
         self.MC = MapCloudlet(self.map_file, self.AMR_LIFT_init, self.AMR_TOW_init, self.Rack_TOW_init,
@@ -352,7 +352,7 @@ class MapManagerAgent(ArbiAgent):
         ''' Collidable gl format: (Collidable $num (pair $robot_id $robot_id $time), …) '''
 
         while True:
-            time.sleep(1)
+            time.sleep(0.1)
             temp_Collidable_info = self.ltm.MC.detect_collision(1000)
             temp_Collidable_num = len(temp_Collidable_info)
             if temp_Collidable_num:
